@@ -79,6 +79,51 @@ def gamma_transform(images, gamma=0.5, scale_factor=1.0, verbose=False):
     return scale_factor * np.power(np.asarray(images), gamma)
 
 
+def _sampling_random_handle_pars(n_img, patchsize, numpatches, buff, seed, fixed_locations):
+    rng_state = normalize_random_state(seed)
+    if fixed_locations is not None:
+        fixed_locations_flag = True
+        if len(fixed_locations) == 1:
+            fixed_locations_single = True
+        elif len(fixed_locations) == n_img:
+            fixed_locations_single = False
+        else:
+            raise ValueError('either one fixed_location, or `n_img` of them')
+    else:
+        fixed_locations_flag = False
+        fixed_locations_single = True  # just convention.
+
+    if not fixed_locations_flag:
+        sample_per_image = int(np.floor(numpatches / n_img))
+    else:
+        sample_per_image = None
+
+    patchsize_h, patchsize_w = np.broadcast_to(patchsize, (2,))
+    buff_h, buff_w = np.broadcast_to(buff, (2,))
+
+    return (rng_state, sample_per_image,
+            patchsize_h, patchsize_w, buff_h, buff_w,
+            fixed_locations_flag, fixed_locations_single)
+
+
+def _sampling_random_get_locations(idx, image, n_img, sample_per_image, numpatches, rng_state,
+                                   patchsize_h, patchsize_w, buff_h, buff_w):
+    height, width = image.shape[:2]
+    # determine how many points to sample.
+    if idx + 1 < n_img:
+        sample_this_image = sample_per_image
+    else:
+        assert idx + 1 == n_img
+        sample_this_image = numpatches - idx * sample_per_image
+        assert sample_this_image >= sample_per_image
+    locations_this = np.zeros((sample_this_image, 2), dtype=np.uint16)
+    h_max = height - 2 * buff_h - patchsize_h
+    w_max = width - 2 * buff_w - patchsize_w
+    for idx, (buff_this, max_this) in zip((buff_h, buff_w), (h_max, w_max)):
+        locations_this[:, idx] = buff_this + rng_state.randint(low=0, high=max_this + 1, size=(sample_this_image,))
+    return locations_this
+
+
 def sampling_random(images, patchsize, numpatches, buff=0, seed=None,
                     fixed_locations=None, return_locations=False, verbose=False):
     """
@@ -108,28 +153,11 @@ def sampling_random(images, patchsize, numpatches, buff=0, seed=None,
     new_image_list = []
     location_list = []
     n_img = len(images)
-    rng_state = normalize_random_state(seed)
-    if fixed_locations is not None:
-        assert len(fixed_locations) == 1 or len(fixed_locations) == n_img
-        fixed_locations_flag = True
-        if len(fixed_locations) == 1:
-            fixed_locations_single = True
-        else:
-            fixed_locations_single = False
-    else:
-        fixed_locations_flag = False
-        fixed_locations_single = True  # just convention.
 
-    if not fixed_locations_flag:
-        sample_per_image = int(np.floor(numpatches / n_img))
-    else:
-        sample_per_image = None
-
-    if np.isscalar(patchsize):
-        patchsize = patchsize, patchsize
-    patchsize = np.asarray(patchsize)
-    assert patchsize.shape == (2,)
-    patchsize_h, patchsize_w = patchsize
+    (rng_state, sample_per_image,
+     patchsize_h, patchsize_w, buff_h, buff_w,
+     fixed_locations_flag, fixed_locations_single) = _sampling_random_handle_pars(n_img, patchsize, numpatches, buff,
+                                                                                  seed, fixed_locations)
 
     for idx, image in enumerate(images):
         if verbose:
@@ -137,19 +165,8 @@ def sampling_random(images, patchsize, numpatches, buff=0, seed=None,
         if fixed_locations_flag:
             locations_this = fixed_locations[0] if fixed_locations_single else fixed_locations[idx]
         else:
-            height, width = image.shape[:2]
-            # determine how many points to sample.
-            if idx + 1 < len(images):
-                sample_this_image = sample_per_image
-            else:
-                assert idx + 1 == len(images)
-                sample_this_image = numpatches - idx * sample_per_image
-                assert sample_this_image >= sample_per_image
-            locations_this = np.zeros((sample_this_image, 2), dtype=np.uint16)
-            locations_this[:, 0] = buff + rng_state.randint(low=0, high=height - 2 * buff - patchsize_h + 1,
-                                                            size=(sample_this_image,))
-            locations_this[:, 1] = buff + rng_state.randint(low=0, high=width - 2 * buff - patchsize_w + 1,
-                                                            size=(sample_this_image,))
+            locations_this = _sampling_random_get_locations(idx, image, n_img, sample_per_image, numpatches, rng_state,
+                                                            patchsize_h, patchsize_w, buff_h, buff_w)
 
         # do patch extraction
         assert locations_this.ndim == 2 and locations_this.shape[1] == 2
@@ -183,9 +200,13 @@ def sampling_transformer(step_pars):
         raise NotImplementedError("type {} not supported!".format(sampling_type))
 
 
-register_transformer('gammaTransform', lambda pars: FunctionTransformer(partial(gamma_transform, **pars)),
+def _get_simple_transformer(func):
+    return (lambda pars: FunctionTransformer(partial(func, **pars)))
+
+
+register_transformer('gammaTransform', _get_simple_transformer(gamma_transform),
                      {'gamma': 0.5, 'scale_factor': 1.0, 'verbose': False})
-register_transformer('logTransform', lambda pars: FunctionTransformer(partial(log_transform, **pars)),
+register_transformer('logTransform', _get_simple_transformer(log_transform),
                      {'bias': 1, 'scale_factor': 1.0, 'verbose': False})
 register_transformer('sampling', sampling_transformer)
 register_transformer('removeDC', lambda _: FunctionTransformer(lambda x: x - np.mean(x, axis=1, keepdims=True)))
