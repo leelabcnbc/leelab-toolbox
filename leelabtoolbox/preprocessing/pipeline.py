@@ -41,6 +41,3 @@ def preprocessing_pipeline(steps=None, pars=None, order=None):
                                        transformer_dict[candidate_step](real_pars[candidate_step])))
 
     return Pipeline(pipeline_step_list), deepcopy(real_pars)
-
-
-print(_preprocessing_pipeline_all_steps)

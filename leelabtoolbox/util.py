@@ -13,9 +13,7 @@ def normalize_random_state(seed):
     this function is modified from `check_random_state` of sklearn.
 
     """
-    if seed is None:
-        return np.random.RandomState(seed=None)
-    if isinstance(seed, numbers.Integral):
+    if seed is None or isinstance(seed, numbers.Integral):
         return np.random.RandomState(seed)
     if isinstance(seed, np.random.RandomState):
         return seed

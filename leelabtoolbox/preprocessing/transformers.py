@@ -119,7 +119,7 @@ def _sampling_random_get_locations(idx, image, n_img, sample_per_image, numpatch
     locations_this = np.zeros((sample_this_image, 2), dtype=np.uint16)
     h_max = height - 2 * buff_h - patchsize_h
     w_max = width - 2 * buff_w - patchsize_w
-    for idx, (buff_this, max_this) in zip((buff_h, buff_w), (h_max, w_max)):
+    for idx, (buff_this, max_this) in enumerate(zip((buff_h, buff_w), (h_max, w_max))):
         locations_this[:, idx] = buff_this + rng_state.randint(low=0, high=max_this + 1, size=(sample_this_image,))
     return locations_this
 
