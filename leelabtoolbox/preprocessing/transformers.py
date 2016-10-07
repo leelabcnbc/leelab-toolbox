@@ -17,10 +17,19 @@ transformer_dict = {}
 default_pars_dict = {}
 
 
-def register_transformer(name, func, default_pars=None):
+def register_transformer(name, func, default_pars=None, pars_validator=None):
+    # TODO: people should register a param checker as well. default checker should only accept `{}`.
     if default_pars is None:
         default_pars = {}
-    transformer_dict[name] = func
+    if pars_validator is None:
+        # by default, only check that keys in passed pars match keys in default_pars.
+        pars_validator = lambda pars: pars.keys() == default_pars.keys()
+
+    def func_for_this_transform(pars):
+        assert pars_validator(pars)
+        return func(pars)
+
+    transformer_dict[name] = func_for_this_transform
     default_pars_dict[name] = default_pars
 
 
@@ -195,7 +204,8 @@ def sampling_transformer(step_pars):
                                            numpatches=step_pars['random_numpatch'],
                                            seed=step_pars['random_seed'],
                                            fixed_locations=step_pars['fixed_locations'],
-                                           verbose=step_pars['verbose']))
+                                           verbose=step_pars['verbose'],
+                                           buff=step_pars['random_buff']))
     else:
         raise NotImplementedError("type {} not supported!".format(sampling_type))
 
@@ -208,6 +218,16 @@ register_transformer('gammaTransform', _get_simple_transformer(gamma_transform),
                      {'gamma': 0.5, 'scale_factor': 1.0, 'verbose': False})
 register_transformer('logTransform', _get_simple_transformer(log_transform),
                      {'bias': 1, 'scale_factor': 1.0, 'verbose': False})
-register_transformer('sampling', sampling_transformer)
+register_transformer('sampling', sampling_transformer,
+                     {
+                         'type': 'random',
+                         'patchsize': None,
+                         'random_numpatch': None,  # only for random
+                         'random_buff': 0,  # only for random
+                         'random_seed': None,
+                         'fixed_locations': None,  # should be an iterable of len 1 or len of images, each
+                         # being a n_patch x 2 array telling the row and column of top left corner.
+                         'verbose': True
+                     })
 register_transformer('removeDC', lambda _: FunctionTransformer(lambda x: x - np.mean(x, axis=1, keepdims=True)))
 register_transformer('flattening', FunctionTransformer(make_2d_array))
