@@ -23,7 +23,7 @@ def register_transformer(name, func, default_pars=None, pars_validator=None):
         default_pars = {}
     if pars_validator is None:
         # by default, only check that keys in passed pars match keys in default_pars.
-        pars_validator = lambda pars: pars.keys() == default_pars.keys()
+        pars_validator = lambda pars: set(pars.keys()) == set(default_pars.keys())
 
     def func_for_this_transform(pars):
         assert pars_validator(pars)
@@ -230,4 +230,4 @@ register_transformer('sampling', sampling_transformer,
                          'verbose': True
                      })
 register_transformer('removeDC', lambda _: FunctionTransformer(lambda x: x - np.mean(x, axis=1, keepdims=True)))
-register_transformer('flattening', FunctionTransformer(make_2d_array))
+register_transformer('flattening', lambda _: FunctionTransformer(make_2d_array))
