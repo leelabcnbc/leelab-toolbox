@@ -152,7 +152,6 @@ class MyTestCase(unittest.TestCase):
 
     def test_gamma(self):
         for _ in range(10):
-            # generate a bunch of things in the range of 10 to 100, so that log()'s accuracy is enough.
             input_this = rng_state.rand(*rng_state.randint(1, 10, size=3)) * 90 + 10
             assert input_this.size > 0
             # generate a bias
@@ -168,13 +167,30 @@ class MyTestCase(unittest.TestCase):
 
     def test_mean(self):
         for _ in range(10):
-            # generate a bunch of things in the range of 10 to 100, so that log()'s accuracy is enough.
             input_this = rng_state.randn(*rng_state.randint(1, 10, size=2))
             assert input_this.ndim == 2 and input_this.size > 0
             ref_result = input_this - input_this.mean(axis=1)[:, np.newaxis]
             returned_result = transformers.transformer_dict['removeDC']({}).transform(input_this)
             self.assertEqual(ref_result.shape, returned_result.shape)
             self.assertTrue(np.allclose(ref_result, returned_result, atol=1e-6))
+
+    def test_unitvar(self):
+        for _ in range(10):
+            # second dim must have more than 2 elements.
+            input_this = rng_state.randn(rng_state.randint(1, 10), rng_state.randint(10, 50))
+            assert input_this.ndim == 2 and input_this.size > 0 and input_this.shape[1] > 1
+            ref_std = np.std(input_this, axis=1, keepdims=True)
+            assert np.all(ref_std!=0)
+            ref_result = input_this / ref_std
+            # test most trivial case.
+            returned_result = transformers.transformer_dict['unitVar']({
+                'ddof': 0,
+                'epsilon': 0,
+                'epsilon_type': 'naive'
+            }).transform(input_this)
+            self.assertEqual(ref_result.shape, returned_result.shape)
+            self.assertTrue(np.allclose(ref_result, returned_result, atol=1e-6))
+            self.assertTrue(np.allclose(np.var(ref_result, axis=1), 1, atol=1e-6))
 
 
 if __name__ == '__main__':

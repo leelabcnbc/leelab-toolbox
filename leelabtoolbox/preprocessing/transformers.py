@@ -23,6 +23,7 @@ def register_transformer(name, func, default_pars=None, pars_validator=None):
         default_pars = {}
     if pars_validator is None:
         # by default, only check that keys in passed pars match keys in default_pars.
+        # I add set() since Python 2 will return lists, and order will then matter.
         pars_validator = lambda pars: set(pars.keys()) == set(default_pars.keys())
 
     def func_for_this_transform(pars):
@@ -210,6 +211,29 @@ def sampling_transformer(step_pars):
         raise NotImplementedError("type {} not supported!".format(sampling_type))
 
 
+def unitvar(x, epsilon=0.001, ddof=0, epsilon_type='naive'):
+    assert epsilon_type in {'naive', 'quantile'}
+    var = np.var(x, axis=1, ddof=ddof, keepdims=True)
+    if epsilon_type == 'naive':
+        pass
+    elif epsilon_type == 'quantile':
+        # numpy use value within [0,100], not [0,1]
+        epsilon_old = epsilon
+        epsilon = np.percentile(var, epsilon_old * 100)
+        print('actual eps at {} quantile: {}\n'
+              'mean var: {}, median var: {}\n'
+              'quantiles from 0 to 1: {}'.format(epsilon_old, epsilon,
+                                                 np.mean(var), np.median(var),
+                                                 np.percentile(var, np.linspace(0, 100, 11))))
+    else:
+        raise ValueError('wrong epsilon type!')
+
+    assert x.ndim == 2
+    x = x / np.sqrt(var + epsilon)
+    assert np.all(np.isfinite(x))
+    return x
+
+
 def _get_simple_transformer(func):
     return (lambda pars: FunctionTransformer(partial(func, **pars)))
 
@@ -231,3 +255,9 @@ register_transformer('sampling', sampling_transformer,
                      })
 register_transformer('removeDC', lambda _: FunctionTransformer(lambda x: x - np.mean(x, axis=1, keepdims=True)))
 register_transformer('flattening', lambda _: FunctionTransformer(make_2d_array))
+register_transformer('unitVar', _get_simple_transformer(unitvar),
+                     {
+                         'epsilon': 0.001,  # this is arbitrary.
+                         'ddof': 0,  # this is easier to understand.
+                         'epsilon_type': 'naive'  # also can be 'quantile'.
+                     })
