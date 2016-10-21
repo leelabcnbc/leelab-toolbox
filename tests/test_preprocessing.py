@@ -5,10 +5,9 @@ from itertools import product
 
 import numpy as np
 
-from leelabtoolbox.preprocessing import transformers
+from leelabtoolbox.preprocessing import transformers, pipeline
 
 rng_state = np.random.RandomState(seed=0)
-
 
 class MyTestCase(unittest.TestCase):
     def setUp(self):
@@ -174,13 +173,13 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(ref_result.shape, returned_result.shape)
             self.assertTrue(np.allclose(ref_result, returned_result, atol=1e-6))
 
-    def test_unitvar(self):
+    def test_unitvar_naive(self):
         for _ in range(10):
             # second dim must have more than 2 elements.
             input_this = rng_state.randn(rng_state.randint(1, 10), rng_state.randint(10, 50))
             assert input_this.ndim == 2 and input_this.size > 0 and input_this.shape[1] > 1
             ref_std = np.std(input_this, axis=1, keepdims=True)
-            assert np.all(ref_std!=0)
+            assert np.all(ref_std != 0)
             ref_result = input_this / ref_std
             # test most trivial case.
             returned_result = transformers.transformer_dict['unitVar']({
@@ -192,6 +191,98 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue(np.allclose(ref_result, returned_result, atol=1e-6))
             self.assertTrue(np.allclose(np.var(ref_result, axis=1), 1, atol=1e-6))
 
+    def test_unitvar_naive_2(self):
+        for _ in range(10):
+            # second dim must have more than 2 elements.
+            input_this = rng_state.randn(rng_state.randint(1, 10), rng_state.randint(10, 50))
+            assert input_this.ndim == 2 and input_this.size > 0 and input_this.shape[1] > 1
+            eps_this = rng_state.rand()
+            ref_std = np.sqrt(np.var(input_this, axis=1, keepdims=True) + eps_this)
+            assert np.all(ref_std != 0)
+            ref_result = input_this / ref_std
+            # test most trivial case.
+            returned_result = transformers.transformer_dict['unitVar']({
+                'ddof': 0,
+                'epsilon': eps_this,
+                'epsilon_type': 'naive'
+            }).transform(input_this)
+            self.assertEqual(ref_result.shape, returned_result.shape)
+            self.assertTrue(np.allclose(ref_result, returned_result, atol=1e-6))
+
+    def test_unitvar_quantile(self):
+        for _ in range(10):
+            # I use 101 elements to specify quantile very easily.
+            input_this = rng_state.randn(101, rng_state.randint(10, 50))
+            assert input_this.ndim == 2 and input_this.size > 0 and input_this.shape[1] > 1
+            ref_var = np.var(input_this, axis=1, keepdims=True)
+            quantile_to_use = rng_state.randint(0, 101)
+            epsilon_actual = np.sort(ref_var.ravel())[quantile_to_use]
+            ref_result = input_this / np.sqrt(ref_var + epsilon_actual)
+            # test most trivial case.
+            returned_result = transformers.transformer_dict['unitVar']({
+                'ddof': 0,
+                'epsilon': quantile_to_use / 100,
+                'epsilon_type': 'quantile'
+            }).transform(input_this)
+            self.assertEqual(ref_result.shape, returned_result.shape)
+            self.assertTrue(np.allclose(ref_result, returned_result, atol=1e-6))
+
+    def test_pipeline(self):
+        # this is just to increase coverage, so test won't be thorough (well you can't be thorough on anything anyways)
+        # just test one case, as used in my ICA data generation code
+        images_to_use = rng_state.rand(10, 1024, 1024)
+        # # nothing at all.
+        steps_naive = ['sampling', 'gammaTransform', 'flattening', 'removeDC', 'unitVar']
+        pars_naive = {'sampling': {'type': 'random',
+                                   'patchsize': 30, 'random_numpatch': 1000,
+                                   'random_buff': 4,
+                                   # just to somehow avoid some artefact on border. shouldn't matter.
+                                   'random_seed': 0},
+                      'unitVar': {
+                          'epsilon': 0.1,  # 0.1 quantile (10 percentile).
+                          'epsilon_type': 'quantile'  # follow Natural Image Statistics book.
+                      }}
+        pipeline_naive, realpars_naive, order_naive = pipeline.preprocessing_pipeline(steps_naive, pars_naive,
+                                                                                      order=steps_naive)
+        X_naive = pipeline_naive.transform(images_to_use)
+        # ok, let's test if we can get these done manually.
+        # first, do sampling
+        pars_sampling = {
+            'type': 'random',
+            'patchsize': 30, 'random_numpatch': 1000,
+            'random_buff': 4,
+            # just to somehow avoid some artefact on border. shouldn't matter.
+            'random_seed': 0,
+            'fixed_locations': None,  # should be an iterable of len 1 or len of images, each
+            # being a n_patch x 2 array telling the row and column of top left corner.
+            'verbose': True
+        }
+        pars_gamma_transform = {'gamma': 0.5, 'scale_factor': 1.0, 'verbose': False}
+        pars_flattening = {}
+        pars_remove_dc = {}
+        pars_unit_var = {
+            'epsilon': 0.1,
+            'ddof': 0,  # this is easier to understand.
+            'epsilon_type': 'quantile'
+        }
+        # let's do it one by one.
+        step_sampling = transformers.transformer_dict['sampling'](pars_sampling)
+        step_gamma = transformers.transformer_dict['gammaTransform'](pars_gamma_transform)
+        step_flattening = transformers.transformer_dict['flattening'](pars_flattening)
+        step_remove_dc = transformers.transformer_dict['removeDC'](pars_remove_dc)
+        step_unit_var = transformers.transformer_dict['unitVar'](pars_unit_var)
+
+        X_ref = step_unit_var.transform(
+            step_remove_dc.transform(
+                step_flattening.transform(
+                    step_gamma.transform(
+                        step_sampling.transform(images_to_use)
+                    )
+                )
+            )
+        )
+
+        self.assertTrue(np.array_equal(X_ref, X_naive))
 
 if __name__ == '__main__':
     unittest.main()
