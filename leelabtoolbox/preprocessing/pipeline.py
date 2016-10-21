@@ -9,7 +9,7 @@ from .transformers import transformer_dict, default_pars_dict
 _preprocessing_pipeline_all_steps = default_pars_dict.keys()
 
 
-def preprocessing_pipeline(steps=None, pars=None, order=None):
+def preprocessing_pipeline(steps=None, pars=None, order=None, return_pars=True, return_order=True):
     # process steps
     if steps is None:
         raise NotImplementedError('no default steps implemented yet!')
@@ -32,6 +32,7 @@ def preprocessing_pipeline(steps=None, pars=None, order=None):
     # process order
     if order is None:
         raise NotImplementedError('no default order implemented yet!')
+    assert isinstance(order, list)
 
     pipeline_step_list = []
 
@@ -40,4 +41,9 @@ def preprocessing_pipeline(steps=None, pars=None, order=None):
             pipeline_step_list.append((candidate_step,
                                        transformer_dict[candidate_step](real_pars[candidate_step])))
 
-    return Pipeline(pipeline_step_list), deepcopy(real_pars)
+    result = Pipeline(pipeline_step_list),
+    if return_pars:
+        result += deepcopy(real_pars),
+    if return_order:
+        result += deepcopy(order),
+    return result
