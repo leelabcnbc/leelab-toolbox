@@ -11,19 +11,19 @@ _caffe_models_root = dir_dict['caffe_models']
 net_info_dict = {}
 
 
-def get_sub_prototxt_bytes(proto_struct, last_layer=None):
+def get_sub_prototxt_bytes(proto_struct, last_blob=None):
     result, net_base = proto_struct
 
-    if last_layer is None:
-        last_layer = list(result.keys())[-1]
-    assert last_layer in result, "output layer {} not defined!".format(last_layer)
+    if last_blob is None:
+        last_blob = list(result.keys())[-1]
+    assert last_blob in result, "output layer {} not defined!".format(last_blob)
 
     prototxt_list = [net_base]
     done = False
-    for layer in result:
+    for blob in result:
         if not done:
-            prototxt_list.append(result[layer])
-            done = (layer == last_layer)
+            prototxt_list.append(result[blob])
+            done = (blob == last_blob)
         else:
             break
     prototxt = b''.join(prototxt_list)
@@ -88,11 +88,11 @@ def _create_blob_info_dict(info_dict_raw):
         }
     return info_dict
 
-
+# I used the prototxt in caffe rc3, which doesn't support data layer.
+# I did this mainly for the program to work on Travis
 register_net_info('alexnet', prototxt_path='alexnet_deploy.prototxt',
                   num_layer_by_blob_dict=OrderedDict(
-                      [('data', 1),
-                       ('conv1', 2),
+                      [('conv1', 2),
                        ('norm1', 1),
                        ('pool1', 1),
                        ('conv2', 2),
@@ -124,8 +124,7 @@ register_net_info('alexnet', prototxt_path='alexnet_deploy.prototxt',
 
 register_net_info('caffenet', prototxt_path='caffenet_deploy.prototxt',
                   num_layer_by_blob_dict=OrderedDict(
-                      [('data', 1),
-                       ('conv1', 2),
+                      [('conv1', 2),
                        ('pool1', 1),
                        ('norm1', 1),
                        ('conv2', 2),
