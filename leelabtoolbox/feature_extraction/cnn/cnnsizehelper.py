@@ -58,6 +58,8 @@ class CNNSizeHelper(object):
 
         # this computes how many last layer's unit will units of shape k cover.
         # compositing functions for different layers will give you global kernelsize.
+
+        kernel_func_dict = OrderedDict()
         last_kernel_func = lambda k: k
 
         def give_one_kernel_func(stride_local, kernelsize_local, last_func):
@@ -100,7 +102,7 @@ class CNNSizeHelper(object):
             assert np.all(this_kernel_func(pad_this + 1) - this_kernel_func(1) == pad_this * last_stride_g)
             # still, I haven't verified the correctness of stride_g and pad_g very satisfactorily, but
             # I think it must be correct, given so many tests.
-
+            kernel_func_dict[layer] = this_kernel_func
 
             last_kernel_func = this_kernel_func
 
@@ -109,6 +111,7 @@ class CNNSizeHelper(object):
             last_pad_g = pad_this_g
 
         self.layer_info_dict = result_dict
+        self.kernel_func_dict = kernel_func_dict
         self.input_size = None
         if input_size is not None:
             self.compute_output_size(input_size)
@@ -162,6 +165,9 @@ class CNNSizeHelper(object):
         bottomvec = np.asarray(bottomvec)
         rightvec = np.asarray(rightvec)
 
+        row_diff = bottomvec - topvec + 1
+        col_diff = rightvec - leftvec + 1
+
         layer_info_dict_this = self.layer_info_dict[layer_name]
         kernelsize_g = layer_info_dict_this['kernelsize_g']
         stride_g = layer_info_dict_this['stride_g']
@@ -173,6 +179,14 @@ class CNNSizeHelper(object):
         max_r_all = stride_g * bottomvec - pad_g + kernelsize_g
         min_c_all = stride_g * leftvec - pad_g
         max_c_all = stride_g * rightvec - pad_g + kernelsize_g
+
+        ref_range_r = self.kernel_func_dict[layer_name](row_diff)
+        ref_range_c = self.kernel_func_dict[layer_name](col_diff)
+
+        # another way saying my kernel size computed is correct. plus that in my test script,
+        # I tested that the position is correct. Thus everything is correct.
+        assert np.array_equal(max_r_all - min_r_all, ref_range_r)
+        assert np.array_equal(max_c_all - min_c_all, ref_range_c)
 
         return min_r_all, max_r_all, min_c_all, max_c_all
 
