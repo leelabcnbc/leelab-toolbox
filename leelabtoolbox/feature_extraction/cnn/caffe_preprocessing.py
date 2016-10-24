@@ -14,9 +14,12 @@ from . import dir_dict
 
 # load the mean ImageNet image (as distributed with Caffe) for subtraction
 try:
-    imagenet_mu = np.load(os.path.join(dir_dict['caffe_root'], 'imagenet', 'ilsvrc_2012_mean.npy')).mean(1).mean(1)
+    imagenet_original = np.load(os.path.join(dir_dict['caffe_root'], 'imagenet', 'ilsvrc_2012_mean.npy'))
+    imagenet_mu = imagenet_original.mean(1).mean(1)  # this one is BGR
 except OSError:
-    imagenet_mu = np.zeros(3, dtype=np.float32)
+    imagenet_original = None
+    imagenet_mu = np.zeros(3, dtype=np.float64)  # match data type of one in caffe.
+imagenet_mu_rgb = imagenet_mu[::-1]
 
 
 def create_transformer(input_blob, input_blob_shape, scale=255, mu=None):
