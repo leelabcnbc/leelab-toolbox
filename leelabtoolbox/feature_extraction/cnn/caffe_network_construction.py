@@ -38,7 +38,7 @@ def create_predefined_net(name, load_weight=True):
     :return:
     """
     if load_weight:
-        model_weight_name = net_info_dict[name]['caffemodel_path']
+        model_weight_name = net_info_dict[name]['caffemodel_path'].encode('utf-8')
     else:
         model_weight_name = None
     model_file_name = net_info_dict[name]['prototxt_path']

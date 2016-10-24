@@ -15,6 +15,7 @@ def reshape_blobs(net, input_blobs, batch_size):
 
 def _extract_features_input_check(net, data_this_caffe, input_blobs,
                                   blobs_to_extract):
+    assert isinstance(data_this_caffe, list), 'you must pass a list of inputs, even for single input'
     if input_blobs is None:
         input_blobs = [net.inputs[0]]  # only take one, as in caffe's classifier.
     if blobs_to_extract is None:
