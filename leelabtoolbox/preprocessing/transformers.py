@@ -3,7 +3,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from functools import partial
 
 import numpy as np
+from numpy.fft import fft2, ifft2, fftshift, ifftshift
 from sklearn.preprocessing import FunctionTransformer
+from joblib import delayed, Parallel
 
 from ..util import normalize_random_state, make_2d_array
 
@@ -234,6 +236,97 @@ def unitvar(x, epsilon=0.001, ddof=0, epsilon_type='naive'):
     return x
 
 
+def whiten_olsh_lee_inner_check_shape(shape):
+    height, width = shape
+    assert height % 2 == 0 and width % 2 == 0, "image must have even size!"
+    return height, width
+
+
+def whiten_olsh_lee(images, f_0=None, central_clip=(None, None), no_filter=False, cutoff=True, n_jobs=1):
+    print("doing 1 over f whitening...")
+    new_image_list = Parallel(n_jobs=n_jobs, verbose=5)(
+        delayed(whiten_olsh_lee_inner)(image, f_0, central_clip, no_filter, cutoff) for image in images)
+    return np.asarray(new_image_list)  # return as a 3d array.
+
+
+def whiten_olsh_lee_inner(image, f_0=None, central_clip=(None, None), no_filter=False, cutoff=True):
+    """1/f whitening. Check tests/preprocessing_ref/whiten_olsh_lee_inner.m for some reference implementations.
+
+    Parameters
+    ----------
+    image
+    f_0
+    central_clip
+    no_filter
+    cutoff
+
+    Returns
+    -------
+
+    Notes
+    -----
+    first, this function automatically makes the image with zero mean, unless no_filter is True.
+    since rho is 0 for the 0,0 frequency component.
+
+    second, in Olshausen's original paper (Visison Research 1997),
+    this whitening is just a trick to speed up learning, making gradient descent
+    procedure work better, and the cutoff is to remove some high frequency artifact.
+
+    in Natural Image Statistics book,
+    whitening is not for learning, as ICA assumes that independent components are white,
+    and artefact is dealt using PCA.
+
+    in Olshausen's original paper (Visison Research 1997),
+    he says that variances along different directions (variance of 1d projection along some direction) are not equal
+    this is true for original data. The original data (as a random vector) \vec{x} has covariance matrix C,
+    and projection along some direction \vec{u} can be written as u^T x, u being a unit vector
+    it's well known that variance of this scalar is u^T C u
+
+    (check https://en.wikipedia.org/wiki/Variance#Matrix_notation_for_the_variance_of_a_linear_combination)
+
+    Although C roughly has all daigonal values to be the same, u^T C u is not constant, due to correlation.
+
+    This shows the difference between scaling all axes to have unit variance, and whitening.
+
+    in addition, this whitening operation is not invariant to cropping.
+    For example, given a 100x100 image, and I want to get the white version of its central 50x50,
+    The result of cropping 50x50 out of the whitened 100x100 is different from whitening the cropped 50x50.
+
+    """
+    height, width = whiten_olsh_lee_inner_check_shape(image.shape)
+
+    # this gives the frequency (in terms of cycles/image) at each location.
+    # notice that it's not perfectly symmetric, following the output of fftshift.
+    fh, fw = np.meshgrid(np.arange(-height / 2, height / 2), np.arange(-width / 2, width / 2), indexing='ij')
+
+    rho = np.sqrt(fh * fh + fw * fw)
+    if cutoff:
+        if f_0 is None:
+            # cut off frequency, set at 0.8 of average max frequency (max frequency is h/2 or w/2)
+            # this 0.4 can be interpreted as cycles per pixel.
+            # this, this default f_0 is scale invariant.
+            f_0 = 0.4 * (height + width) / 2
+        filt = rho * np.exp(-((rho / f_0) ** 4))
+    else:
+        filt = rho
+
+    im_f = fft2(image)
+    if not no_filter:
+        fft_filtered_old = im_f * ifftshift(filt)
+    else:  # hack to only lower frequency response.
+        print('no real filtering!')
+        fft_filtered_old = im_f
+    fft_filtered_old = fftshift(fft_filtered_old)
+    if central_clip != (None, None):
+        # I would say this is probably a more fancy approach of downscaling an image.
+        cheight, cwidth = whiten_olsh_lee_inner_check_shape(central_clip)
+        fft_filtered_old = fft_filtered_old[(height // 2 - cheight // 2):(height // 2 + cheight // 2),
+                           (width // 2 - cwidth // 2):(width // 2 + cwidth // 2)]
+    # take real, although the complex part should be very very small.
+    im_out = np.real(ifft2(ifftshift(fft_filtered_old)))
+    return im_out
+
+
 def _get_simple_transformer(func):
     return (lambda pars: FunctionTransformer(partial(func, **pars)))
 
@@ -261,3 +354,12 @@ register_transformer('unitVar', _get_simple_transformer(unitvar),
                          'ddof': 0,  # this is easier to understand.
                          'epsilon_type': 'naive'  # also can be 'quantile'.
                      })
+register_transformer('oneOverFWhitening', _get_simple_transformer(whiten_olsh_lee),
+                     {'f_0': None,  # cut off frequency, in cycle / image. 0.4*mean(H, W) by default
+                      'central_clip': (None, None),
+                      # clip the central central_clip[0] x central_clip[1] part in the frequency
+                      # domain. by default, don't do anything.
+                      'no_filter': False,  # useful when only want to do central_clip,
+                      'cutoff': True,  # whether do cutoff frequency or not.
+                      'n_jobs': 1,
+                      })

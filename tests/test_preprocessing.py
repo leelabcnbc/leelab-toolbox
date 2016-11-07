@@ -4,10 +4,15 @@ import unittest
 from itertools import product
 
 import numpy as np
+import h5py
+import os.path
+
+test_dir = os.path.split(__file__)[0]
 
 from leelabtoolbox.preprocessing import transformers, pipeline
 
 rng_state = np.random.RandomState(seed=0)
+
 
 class MyTestCase(unittest.TestCase):
     def setUp(self):
@@ -283,6 +288,137 @@ class MyTestCase(unittest.TestCase):
         )
 
         self.assertTrue(np.array_equal(X_ref, X_naive))
+
+    def test_whiten_olsh_lee_inner(self):
+        # first, load files.
+        with h5py.File(os.path.join(test_dir, 'preprocessing_ref', 'one_over_f_whitening_ref.hdf5'), 'r') as f:
+            original_images = f['original_images'][...].transpose((0, 2, 1))
+            new_images_default = f['new_images_default'][...].transpose((0, 2, 1))
+            new_images_change_f0 = f['new_images_change_f0'][...].transpose((0, 2, 1))
+            new_images_no_cutoff = f['new_images_no_cutoff'][...].transpose((0, 2, 1))
+            new_images_change_crop = f['new_images_change_crop'][...].transpose((0, 2, 1))
+            new_images_change_crop_pure = f['new_images_change_crop_pure'][...].transpose((0, 2, 1))
+
+        # first, test default argument
+        steps_naive = ['oneOverFWhitening']
+        pars_naive = {'oneOverFWhitening':
+                          {}
+                      }
+
+        pars_change_f0 = {'oneOverFWhitening':
+                              {'f_0': 40,  # cut off frequency, in cycle / image. 0.4*mean(H, W) by default
+                               }
+                          }
+
+        pars_no_cutoff = {'oneOverFWhitening':
+                              {
+                               'cutoff': False,  # whether do cutoff frequency or not.
+                               }
+                          }
+
+        pars_change_crop = {'oneOverFWhitening':
+                                {
+                                 'central_clip': (64, 128),
+                                 }
+                            }
+
+        pars_change_crop_pure = {'oneOverFWhitening':
+                                     {
+                                      'central_clip': (64, 128),
+                                      # clip the central central_clip[0] x central_clip[1] part in the frequency
+                                      # domain. by default, don't do anything.
+                                      'no_filter': True,  # useful when only want to do central_clip,
+                                      }
+                                 }
+
+        pipeline_default = pipeline.preprocessing_pipeline(steps_naive, pars_naive, order=steps_naive)[0]
+        pipeline_change_f0 = pipeline.preprocessing_pipeline(steps_naive, pars_change_f0, order=steps_naive)[0]
+        pipeline_cutoff = pipeline.preprocessing_pipeline(steps_naive, pars_no_cutoff, order=steps_naive)[0]
+        pipeline_change_crop = pipeline.preprocessing_pipeline(steps_naive, pars_change_crop, order=steps_naive)[0]
+        pipeline_change_crop_pure = pipeline.preprocessing_pipeline(steps_naive, pars_change_crop_pure,
+                                                                    order=steps_naive)[0]
+
+        def check_shape_and_close(X1, X2, no_filter=False):
+            if not no_filter:
+                # mean very close to zero
+                self.assertTrue(abs(X2.mean()) < 1e-6)
+            self.assertEqual(X1.shape, X2.shape)
+            print(abs(X1 - X2).max())
+            self.assertTrue(np.allclose(X1, X2))
+
+        check_shape_and_close(new_images_default, pipeline_default.transform(original_images))
+        check_shape_and_close(new_images_change_f0, pipeline_change_f0.transform(original_images))
+        check_shape_and_close(new_images_no_cutoff, pipeline_cutoff.transform(original_images))
+        check_shape_and_close(new_images_change_crop, pipeline_change_crop.transform(original_images))
+        check_shape_and_close(new_images_change_crop_pure, pipeline_change_crop_pure.transform(original_images), True)
+
+    def test_whiten_olsh_lee_inner_multi(self):
+        # first, load files.
+        with h5py.File(os.path.join(test_dir, 'preprocessing_ref', 'one_over_f_whitening_ref.hdf5'), 'r') as f:
+            original_images = f['original_images'][...].transpose((0, 2, 1))
+            new_images_default = f['new_images_default'][...].transpose((0, 2, 1))
+            new_images_change_f0 = f['new_images_change_f0'][...].transpose((0, 2, 1))
+            new_images_no_cutoff = f['new_images_no_cutoff'][...].transpose((0, 2, 1))
+            new_images_change_crop = f['new_images_change_crop'][...].transpose((0, 2, 1))
+            new_images_change_crop_pure = f['new_images_change_crop_pure'][...].transpose((0, 2, 1))
+
+        # first, test default argument
+        steps_naive = ['oneOverFWhitening']
+        pars_naive = {'oneOverFWhitening':
+                          {
+                           'n_jobs': -1,
+                           }
+                      }
+
+        pars_change_f0 = {'oneOverFWhitening':
+                              {'f_0': 40,  # cut off frequency, in cycle / image. 0.4*mean(H, W) by default
+                               'n_jobs': -1,
+                               }
+                          }
+
+        pars_no_cutoff = {'oneOverFWhitening':
+                              {
+                               'cutoff': False,  # whether do cutoff frequency or not.
+                               'n_jobs': -1,
+                               }
+                          }
+
+        pars_change_crop = {'oneOverFWhitening':
+                                {
+                                 'central_clip': (64, 128),
+                                 'n_jobs': -1,
+                                 }
+                            }
+
+        pars_change_crop_pure = {'oneOverFWhitening':
+                                     {
+                                      'central_clip': (64, 128),
+                                      'no_filter': True,  # useful when only want to do central_clip,
+                                      'n_jobs': -1,
+                                      }
+                                 }
+
+        pipeline_default = pipeline.preprocessing_pipeline(steps_naive, pars_naive, order=steps_naive)[0]
+        pipeline_change_f0 = pipeline.preprocessing_pipeline(steps_naive, pars_change_f0, order=steps_naive)[0]
+        pipeline_cutoff = pipeline.preprocessing_pipeline(steps_naive, pars_no_cutoff, order=steps_naive)[0]
+        pipeline_change_crop = pipeline.preprocessing_pipeline(steps_naive, pars_change_crop, order=steps_naive)[0]
+        pipeline_change_crop_pure = pipeline.preprocessing_pipeline(steps_naive, pars_change_crop_pure,
+                                                                    order=steps_naive)[0]
+
+        def check_shape_and_close(X1, X2, no_filter=False):
+            if not no_filter:
+                # mean very close to zero
+                self.assertTrue(abs(X2.mean()) < 1e-6)
+            self.assertEqual(X1.shape, X2.shape)
+            print(abs(X1 - X2).max())
+            self.assertTrue(np.allclose(X1, X2))
+
+        check_shape_and_close(new_images_default, pipeline_default.transform(original_images))
+        check_shape_and_close(new_images_change_f0, pipeline_change_f0.transform(original_images))
+        check_shape_and_close(new_images_no_cutoff, pipeline_cutoff.transform(original_images))
+        check_shape_and_close(new_images_change_crop, pipeline_change_crop.transform(original_images))
+        check_shape_and_close(new_images_change_crop_pure, pipeline_change_crop_pure.transform(original_images), True)
+
 
 if __name__ == '__main__':
     unittest.main()

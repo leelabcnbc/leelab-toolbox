@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-conda install --yes --no-update-dependencies -c conda-forge scikit-learn joblib scikit-image
+conda install --yes --no-update-dependencies -c conda-forge scikit-learn joblib scikit-image h5py
 pip install imagen==2.0.1
 # TODO: add spams if using Python 2.7
 
@@ -20,5 +20,7 @@ pip install imagen==2.0.1
 
 # travis specific, handling caffe
 if [ "$TRAVIS_PYTHON_VERSION" == "2.7" ]; then
-    conda install --yes --no-update-dependencies -c conda-forge caffe
+    # fix protobuf version, as cafferc3 here in conda-forge might be compiled with 3.0.0b3, and somehow it can't work
+    # with newer version.
+    conda install --yes --no-update-dependencies -c conda-forge caffe protobuf=3.0.0b3
 fi
