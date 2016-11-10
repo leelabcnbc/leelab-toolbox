@@ -8,3 +8,9 @@
 . ~/DevOps/env_scripts/add_conda_env_lib.sh
 . ~/DevOps/env_scripts/add_openblas.sh
 . ~/DevOps/env_scripts/add_caffe_latest_python.sh
+
+# add leelabtoolbox to PYTHONPATH
+
+# from <http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in?page=1&tab=votes#tab-top>
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export PYTHONPATH="${DIR}":"${PYTHONPATH}"
