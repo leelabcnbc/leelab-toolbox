@@ -87,3 +87,6 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# rsa_ref
+/tests/rsa_ref/rsatoolbox/
