@@ -22,5 +22,5 @@ pip install imagen==2.0.1
 if [ "$TRAVIS_PYTHON_VERSION" == "2.7" ]; then
     # fix protobuf version, as cafferc3 here in conda-forge might be compiled with 3.0.0b3, and somehow it can't work
     # with newer version.
-    conda install --yes --no-update-dependencies -c conda-forge caffe protobuf=3.0.0
+    conda install --yes --no-update-dependencies -c conda-forge caffe protobuf=3.1.0 gflags=2.1.2 opencv=3.1
 fi
