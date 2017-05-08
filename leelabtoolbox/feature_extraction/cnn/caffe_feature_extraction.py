@@ -33,7 +33,7 @@ def _extract_features_input_check(net, data_this_caffe, input_blobs,
 
 def _extract_features_one_loop(feature_dict,
                                net, data_this_caffe, input_blobs, blobs_to_extract, batch_size,
-                               num_image, slice_dict, startidx, unsafe=False, raw_dim=False):
+                               num_image, slice_dict, startidx, unsafe=False, raw_dim=False, last_layer=None):
     slice_this_time = slice(startidx, min(num_image, startidx + batch_size))
     slice_out_this_time = slice(0, slice_this_time.stop - slice_this_time.start)
 
@@ -42,7 +42,7 @@ def _extract_features_one_loop(feature_dict,
         net.blobs[in_blob].data[slice_out_this_time] = data_this_caffe[idx][slice_this_time]
 
     # then forward.
-    net.forward()
+    net.forward(end=last_layer)
 
     for blob in blobs_to_extract:
         slice_r, slice_c = slice_dict[blob]
@@ -65,7 +65,7 @@ def _extract_features_one_loop(feature_dict,
 
 def extract_features(net, data_this_caffe, input_blobs=None,
                      blobs_to_extract=None, batch_size=50, slice_dict=None, unsafe=False,
-                     raw_dim=False):
+                     raw_dim=False, last_layer=None):
     if slice_dict is None:
         slice_dict = defaultdict(lambda: (slice(None, None), slice(None, None)))
 
