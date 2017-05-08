@@ -35,7 +35,7 @@ def create_transformer(input_blob, input_blob_shape, scale=255, mu=None):
     return transformer
 
 
-def transform_batch(transformer, data, input_blob):
+def transform_batch(transformer, data, input_blob, unsafe=False):
     # use x.copy(), since Caffe can potentially overwrite data.
     # if you won't have channel swap set...
-    return np.asarray([transformer.preprocess(input_blob, x.copy()) for x in data])
+    return np.asarray([transformer.preprocess(input_blob, x if unsafe else x.copy()) for x in data])
