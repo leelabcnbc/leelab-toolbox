@@ -75,13 +75,14 @@ def extract_features(net, data_this_caffe, input_blobs=None,
 
     feature_dict = defaultdict(list)
     if unsafe:
-        assert batch_size == num_image
+        assert batch_size >= num_image
     # then do the actual computation
     # start_t_f = time.time()
     for startidx in range(0, num_image, batch_size):
         _extract_features_one_loop(feature_dict,
                                    net, data_this_caffe, input_blobs, blobs_to_extract, batch_size,
-                                   num_image, slice_dict, startidx, unsafe=unsafe, raw_dim=raw_dim)
+                                   num_image, slice_dict, startidx, unsafe=unsafe, raw_dim=raw_dim,
+                                   last_layer=last_layer)
     # end_t_f = time.time()
     # print('actual extraction time {}'.format(end_t_f-start_t_f))
     # start_t_f1 = time.time()
