@@ -40,6 +40,9 @@ def display_network(W, n_col=None, n_row=None, transpose=False, padding=1, image
     :return:
     """
     # scale each one to [-1, 1]
+    assert W.ndim == 2 or W.ndim == 3
+    if W.ndim == 3:
+        W = W.reshape(W.shape[0], W.shape[1] * W.shape[2])
     assert W.ndim == 2
     # TODO: add other normalization behaviour
     W = maxabs_scale(W, axis=1)

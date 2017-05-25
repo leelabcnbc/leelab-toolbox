@@ -1,6 +1,7 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import numpy as np
 from collections import defaultdict
+import time
 
 
 def reshape_blobs(net, input_blobs, batch_size):
@@ -32,7 +33,7 @@ def _extract_features_input_check(net, data_this_caffe, input_blobs,
 
 def _extract_features_one_loop(feature_dict,
                                net, data_this_caffe, input_blobs, blobs_to_extract, batch_size,
-                               num_image, slice_dict, startidx):
+                               num_image, slice_dict, startidx, unsafe=False, raw_dim=False, last_layer=None):
     slice_this_time = slice(startidx, min(num_image, startidx + batch_size))
     slice_out_this_time = slice(0, slice_this_time.stop - slice_this_time.start)
 
@@ -41,21 +42,30 @@ def _extract_features_one_loop(feature_dict,
         net.blobs[in_blob].data[slice_out_this_time] = data_this_caffe[idx][slice_this_time]
 
     # then forward.
-    net.forward()
+    net.forward(end=last_layer)
 
     for blob in blobs_to_extract:
         slice_r, slice_c = slice_dict[blob]
         blob_raw = net.blobs[blob].data[slice_out_this_time]
-        if blob_raw.ndim == 2:  # this can be the case for full connection layers.
-            blob_raw = blob_raw[:, :, np.newaxis, np.newaxis]
-        assert blob_raw.ndim == 4
-        # this copy is important... otherwise there can be issues.
-        data_this_to_use = blob_raw[:, :, slice_r, slice_c].copy()
+        if not raw_dim:
+            if blob_raw.ndim == 2:  # this can be the case for full connection layers.
+                blob_raw = blob_raw[:, :, np.newaxis, np.newaxis]
+            assert blob_raw.ndim == 4
+            # this copy is important... otherwise there can be issues.
+            # slice only works with not raw dim.
+        if blob_raw.ndim == 4:
+            data_this_to_use = blob_raw[:, :, slice_r, slice_c]
+        else:
+            data_this_to_use = blob_raw
+
+        if not unsafe:
+            data_this_to_use = data_this_to_use.copy()
         feature_dict[blob].append(data_this_to_use)
 
 
 def extract_features(net, data_this_caffe, input_blobs=None,
-                     blobs_to_extract=None, batch_size=50, slice_dict=None):
+                     blobs_to_extract=None, batch_size=50, slice_dict=None, unsafe=False,
+                     raw_dim=False, last_layer=None):
     if slice_dict is None:
         slice_dict = defaultdict(lambda: (slice(None, None), slice(None, None)))
 
@@ -64,13 +74,24 @@ def extract_features(net, data_this_caffe, input_blobs=None,
     reshape_blobs(net, input_blobs, batch_size)
 
     feature_dict = defaultdict(list)
+    if unsafe:
+        assert batch_size >= num_image
     # then do the actual computation
+    # start_t_f = time.time()
     for startidx in range(0, num_image, batch_size):
         _extract_features_one_loop(feature_dict,
                                    net, data_this_caffe, input_blobs, blobs_to_extract, batch_size,
-                                   num_image, slice_dict, startidx)
-
+                                   num_image, slice_dict, startidx, unsafe=unsafe, raw_dim=raw_dim,
+                                   last_layer=last_layer)
+    # end_t_f = time.time()
+    # print('actual extraction time {}'.format(end_t_f-start_t_f))
+    # start_t_f1 = time.time()
     for blob_out in feature_dict:
-        feature_dict[blob_out] = np.concatenate(feature_dict[blob_out], axis=0)
+        if not unsafe:
+            feature_dict[blob_out] = np.concatenate(feature_dict[blob_out], axis=0)
+        else:
+            feature_dict[blob_out] = feature_dict[blob_out][0]
+    # end_t_f1 = time.time()
+    # print('post processing time {}'.format(end_t_f1 - start_t_f1))
 
     return feature_dict

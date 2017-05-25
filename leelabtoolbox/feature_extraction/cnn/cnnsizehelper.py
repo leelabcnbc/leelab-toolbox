@@ -269,6 +269,7 @@ class CNNSizeHelper(object):
 
 
 def create_size_helper(info_dict, input_size=None, last_layer=None):
+    info_dict = deepcopy(info_dict)
     assert isinstance(info_dict, OrderedDict)
     if last_layer is not None:
         keys_all = list(info_dict.keys())
