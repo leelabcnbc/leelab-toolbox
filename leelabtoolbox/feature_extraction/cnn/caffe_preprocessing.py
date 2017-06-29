@@ -12,13 +12,9 @@ except ImportError:
 
 from . import dir_dict
 
-# load the mean ImageNet image (as distributed with Caffe) for subtraction
-try:
-    imagenet_original = np.load(os.path.join(dir_dict['caffe_root'], 'imagenet', 'ilsvrc_2012_mean.npy'))
-    imagenet_mu = imagenet_original.mean(1).mean(1)  # this one is BGR
-except OSError:
-    imagenet_original = None
-    imagenet_mu = np.zeros(3, dtype=np.float64)  # match data type of one in caffe.
+# load the stat ImageNet image (as distributed with Caffe) for subtraction
+from .generic_preprocessing import caffe_mu_bgr as imagenet_mu
+
 imagenet_mu_rgb = imagenet_mu[::-1]
 
 
