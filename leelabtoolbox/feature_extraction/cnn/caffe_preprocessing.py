@@ -1,6 +1,5 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import os.path
 from copy import deepcopy
 
 import numpy as np
@@ -8,17 +7,11 @@ import numpy as np
 try:
     import caffe
 except ImportError:
-    pass
+    caffe = None
 
-from . import dir_dict
+# load the stat ImageNet image (as distributed with Caffe) for subtraction
+from .generic_preprocessing import caffe_mu_bgr as imagenet_mu
 
-# load the mean ImageNet image (as distributed with Caffe) for subtraction
-try:
-    imagenet_original = np.load(os.path.join(dir_dict['caffe_root'], 'imagenet', 'ilsvrc_2012_mean.npy'))
-    imagenet_mu = imagenet_original.mean(1).mean(1)  # this one is BGR
-except OSError:
-    imagenet_original = None
-    imagenet_mu = np.zeros(3, dtype=np.float64)  # match data type of one in caffe.
 imagenet_mu_rgb = imagenet_mu[::-1]
 
 

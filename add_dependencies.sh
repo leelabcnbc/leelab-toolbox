@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
+conda install --yes caffe
 conda install --yes --no-update-dependencies -c conda-forge scikit-learn joblib scikit-image h5py
-pip install imagen==2.0.1
+pip install imagen
 # TODO: add spams if using Python 2.7
 
 # TODO: install matlab plugin
@@ -19,8 +20,9 @@ pip install imagen==2.0.1
 # seems that this is by design of distutils, not by MATLAB.
 
 # travis specific, handling caffe
-if [ "$TRAVIS_PYTHON_VERSION" == "2.7" ]; then
-    # fix protobuf version, as cafferc3 here in conda-forge might be compiled with 3.0.0b3, and somehow it can't work
-    # with newer version.
-    conda install --yes --no-update-dependencies -c conda-forge caffe protobuf=3.1.0 gflags=2.1.2 opencv=3.1
-fi
+#if [ "$TRAVIS_PYTHON_VERSION" == "2.7" ]; then
+#    # fix protobuf version, as cafferc3 here in conda-forge might be compiled with 3.0.0b3, and somehow it can't work
+#    # with newer version.
+#    conda install --yes --no-update-dependencies -c conda-forge caffe protobuf=3.3.0 gflags=2.2.0 opencv=3.2.0
+#fi
+

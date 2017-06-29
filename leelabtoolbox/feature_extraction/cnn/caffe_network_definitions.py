@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from collections import OrderedDict
 import os.path
 from . import dir_dict, cnn_pkg_spec
+from .generic_network_definitions import blob_info, input_size_info
 from pkgutil import get_data
 
 _caffe_models_root = dir_dict['caffe_models']
@@ -78,16 +79,6 @@ def register_net_info(name, prototxt_path, num_layer_by_blob_dict, caffemodel_pa
     }
 
 
-def _create_blob_info_dict(info_dict_raw):
-    info_dict = OrderedDict()
-    for layer, stride, kernelsize, pad in info_dict_raw:
-        info_dict[layer] = {
-            'stride': stride,
-            'kernelsize': kernelsize,
-            'pad': pad
-        }
-    return info_dict
-
 # I used the prototxt in caffe rc3, which doesn't support data layer.
 # I did this mainly for the program to work on Travis
 register_net_info('alexnet', prototxt_path='alexnet_deploy.prototxt',
@@ -107,20 +98,9 @@ register_net_info('alexnet', prototxt_path='alexnet_deploy.prototxt',
                        ('fc8', 1),
                        ('prob', 1)]
                   ), caffemodel_path=os.path.join(_caffe_models_root, 'bvlc_alexnet', 'bvlc_alexnet.caffemodel'),
-                  input_size=(227, 227),
+                  input_size=input_size_info['alexnet'],
                   input_blob='data',
-                  conv_blob_info_dict=_create_blob_info_dict(
-                      [('conv1', 4, 11, 0),
-                       ('norm1', 1, 1, 0),
-                       ('pool1', 2, 3, 0),
-                       ('conv2', 1, 5, 2),
-                       ('norm2', 1, 1, 0),
-                       ('pool2', 2, 3, 0),
-                       ('conv3', 1, 3, 1),
-                       ('conv4', 1, 3, 1),
-                       ('conv5', 1, 3, 1),
-                       ('pool5', 2, 3, 0)]
-                  ))
+                  conv_blob_info_dict=blob_info['alexnet'])
 
 register_net_info('caffenet', prototxt_path='caffenet_deploy.prototxt',
                   num_layer_by_blob_dict=OrderedDict(
@@ -139,20 +119,10 @@ register_net_info('caffenet', prototxt_path='caffenet_deploy.prototxt',
                        ('fc8', 1),
                        ('prob', 1)]
                   ), caffemodel_path=os.path.join(_caffe_models_root, 'bvlc_reference_caffenet',
-                                                  'bvlc_reference_caffenet.caffemodel'), input_size=(227, 227),
+                                                  'bvlc_reference_caffenet.caffemodel'),
+                  input_size=input_size_info['caffenet'],
                   input_blob='data',
-                  conv_blob_info_dict=_create_blob_info_dict(
-                      [('conv1', 4, 11, 0),
-                       ('pool1', 2, 3, 0),
-                       ('norm1', 1, 1, 0),
-                       ('conv2', 1, 5, 2),
-                       ('pool2', 2, 3, 0),
-                       ('norm2', 1, 1, 0),
-                       ('conv3', 1, 3, 1),
-                       ('conv4', 1, 3, 1),
-                       ('conv5', 1, 3, 1),
-                       ('pool5', 2, 3, 0)]
-                  ))
+                  conv_blob_info_dict=blob_info['caffenet'])
 
 register_net_info('vgg16', prototxt_path='VGG_ILSVRC_16_layers_deploy.prototxt',
                   num_layer_by_blob_dict=OrderedDict(
@@ -179,28 +149,10 @@ register_net_info('vgg16', prototxt_path='VGG_ILSVRC_16_layers_deploy.prototxt',
                        ('fc8', 1),
                        ('prob', 1)],
                   ), caffemodel_path=os.path.join(_caffe_models_root, '211839e770f7b538e2d8',
-                                                  'VGG_ILSVRC_16_layers.caffemodel'), input_size=(224, 224),
+                                                  'VGG_ILSVRC_16_layers.caffemodel'),
+                  input_size=input_size_info['vgg16'],
                   input_blob='data',
-                  conv_blob_info_dict=_create_blob_info_dict(
-                      [('conv1_1', 1, 3, 1),
-                       ('conv1_2', 1, 3, 1),
-                       ('pool1', 2, 2, 0),
-                       ('conv2_1', 1, 3, 1),
-                       ('conv2_2', 1, 3, 1),
-                       ('pool2', 2, 2, 0),
-                       ('conv3_1', 1, 3, 1),
-                       ('conv3_2', 1, 3, 1),
-                       ('conv3_3', 1, 3, 1),
-                       ('pool3', 2, 2, 0),
-                       ('conv4_1', 1, 3, 1),
-                       ('conv4_2', 1, 3, 1),
-                       ('conv4_3', 1, 3, 1),
-                       ('pool4', 2, 2, 0),
-                       ('conv5_1', 1, 3, 1),
-                       ('conv5_2', 1, 3, 1),
-                       ('conv5_3', 1, 3, 1),
-                       ('pool5', 2, 2, 0)],
-                  ),
+                  conv_blob_info_dict=blob_info['vgg16'],
                   sep='layers {')
 
 register_net_info('vgg19', prototxt_path='VGG_ILSVRC_19_layers_deploy.prototxt',
@@ -231,31 +183,10 @@ register_net_info('vgg19', prototxt_path='VGG_ILSVRC_19_layers_deploy.prototxt',
                        ('fc8', 1),
                        ('prob', 1)],
                   ), caffemodel_path=os.path.join(_caffe_models_root, '3785162f95cd2d5fee77',
-                                                  'VGG_ILSVRC_19_layers.caffemodel'), input_size=(224, 224),
+                                                  'VGG_ILSVRC_19_layers.caffemodel'),
+                  input_size=input_size_info['vgg19'],
                   input_blob='data',
-                  conv_blob_info_dict=_create_blob_info_dict(
-                      [('conv1_1', 1, 3, 1),
-                       ('conv1_2', 1, 3, 1),
-                       ('pool1', 2, 2, 0),
-                       ('conv2_1', 1, 3, 1),
-                       ('conv2_2', 1, 3, 1),
-                       ('pool2', 2, 2, 0),
-                       ('conv3_1', 1, 3, 1),
-                       ('conv3_2', 1, 3, 1),
-                       ('conv3_3', 1, 3, 1),
-                       ('conv3_4', 1, 3, 1),
-                       ('pool3', 2, 2, 0),
-                       ('conv4_1', 1, 3, 1),
-                       ('conv4_2', 1, 3, 1),
-                       ('conv4_3', 1, 3, 1),
-                       ('conv4_4', 1, 3, 1),
-                       ('pool4', 2, 2, 0),
-                       ('conv5_1', 1, 3, 1),
-                       ('conv5_2', 1, 3, 1),
-                       ('conv5_3', 1, 3, 1),
-                       ('conv5_4', 1, 3, 1),
-                       ('pool5', 2, 2, 0)],
-                  ),
+                  conv_blob_info_dict=blob_info['vgg19'],
                   sep='layers {')
 
 proto_struct_dict = {key: _caffe_deploy_proto_by_layers(get_prototxt_bytes(value['prototxt_path']),

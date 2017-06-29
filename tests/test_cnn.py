@@ -1,13 +1,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from leelabtoolbox import PY2
+import os
 
-if PY2:
-    import os
-
-    # <http://stackoverflow.com/questions/29788075/setting-glog-minloglevel-1-to-prevent-output-in-shell-from-caffe>
-    os.environ['GLOG_minloglevel'] = '2'
-    from caffe.io import resize_image
+# <http://stackoverflow.com/questions/29788075/setting-glog-minloglevel-1-to-prevent-output-in-shell-from-caffe>
+os.environ['GLOG_minloglevel'] = '2'
+from caffe.io import resize_image
 
 import unittest
 from itertools import product
@@ -23,6 +20,8 @@ from leelabtoolbox.feature_extraction.cnn import caffe_feature_extraction
 
 rng_state = np.random.RandomState(seed=0)
 
+# too big for travis
+net_to_skip = {'vgg19'}
 
 def _valid_input_selector(x, input_size):
     raw_r = np.arange(*x[0])
@@ -36,7 +35,7 @@ def _valid_input_selector(x, input_size):
 def _fill_weight_random(net_this, rng_seed):
     rng_state = np.random.RandomState(seed=rng_seed)
     # let's fill the net with weights
-    for layer_name, param in net_this.params.iteritems():
+    for layer_name, param in net_this.params.items():
         for idx in range(len(param)):
             param[idx].data[...] = rng_state.randn(*param[idx].data.shape) * 0.1
 
@@ -146,7 +145,6 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(type(prototxt_bytes_split_then_combined), bytes)
             self.assertEqual(prototxt_bytes_ref, prototxt_bytes_split_then_combined)
 
-    @unittest.skipUnless(PY2, 'caffe only runs well on Python 2')
     def test_caffe_preprocessing_transformer(self):
         input_name = 'test_blob'
         for _ in range(5):
@@ -213,7 +211,6 @@ class MyTestCase(unittest.TestCase):
                 #     # this won't work due to caffe's way to deal with resizing. But in practice it shouldn't matter.
                 #     self.assertTrue(np.allclose(blob_images, blob_images_ref, atol=1e-4))
 
-    @unittest.skipUnless(PY2, 'caffe only runs well on Python 2')
     def test_sizehelper_blob_size_and_compute_range(self):
         # here, I will use a real CNN (alexnet) to verify that the range is computed corrrectly.
         # and verify that my blob sizes are computed correctly.
@@ -228,7 +225,7 @@ class MyTestCase(unittest.TestCase):
             net_this.blobs[input_blob].reshape(*shape_new)
             net_this.forward()
             last_input_size = net_info_this['input_size']
-            for conv_blob_name, conv_blob_info in helper_this.layer_info_dict.iteritems():
+            for conv_blob_name, conv_blob_info in helper_this.layer_info_dict.items():
                 print('{}: {}'.format(net_name, conv_blob_name))
                 self.assertEqual((1,) + conv_blob_info['output_size'],
                                  net_this.blobs[conv_blob_name].data.shape[0:1] + net_this.blobs[
@@ -242,7 +239,7 @@ class MyTestCase(unittest.TestCase):
             # example networks.
 
             # let's fill the net with weights
-            for layer_name, param in net_this.params.iteritems():
+            for layer_name, param in net_this.params.items():
                 for idx in range(len(param)):
                     param[idx].data[...] = rng_state.randn(*param[idx].data.shape) * 0.1
 
@@ -250,7 +247,7 @@ class MyTestCase(unittest.TestCase):
             blobs_to_test = rng_state.choice(list(helper_this.layer_info_dict.keys()),
                                              size=5, replace=False)
 
-            for conv_blob_name, conv_blob_info in helper_this.layer_info_dict.iteritems():
+            for conv_blob_name, conv_blob_info in helper_this.layer_info_dict.items():
                 if conv_blob_name not in blobs_to_test:
                     continue
                 print('test compute range, {}: {}'.format(net_name, conv_blob_name))
@@ -400,7 +397,6 @@ class MyTestCase(unittest.TestCase):
                     self.assertEqual(helper_this.layer_info_dict[x],
                                      helper_this_2.layer_info_dict[x])
 
-    @unittest.skipUnless(PY2, 'caffe only runs well on Python 2')
     def test_fill_cnn(self):
         # here, I will use a real CNN (alexnet) to verify that the range is computed corrrectly.
         # and verify that my blob sizes are computed correctly.
@@ -414,12 +410,12 @@ class MyTestCase(unittest.TestCase):
             # fill net_this again
             _fill_weight_random(net_this, rng_seed=1)
             # check they are all different
-            for layer_name, param in net_this_2.params.iteritems():
+            for layer_name, param in net_this_2.params.items():
                 for idx in range(len(param)):
                     self.assertFalse(np.array_equal(param[idx].data, net_this.params[layer_name][idx].data))
             # fill again
             _fill_weight_random(net_this, rng_seed=0)
-            for layer_name, param in net_this_2.params.iteritems():
+            for layer_name, param in net_this_2.params.items():
                 for idx in range(len(param)):
                     self.assertFalse(np.may_share_memory(param[idx].data, net_this.params[layer_name][idx].data))
                     self.assertTrue(np.array_equal(param[idx].data, net_this.params[layer_name][idx].data))
@@ -456,9 +452,10 @@ class MyTestCase(unittest.TestCase):
             slice_dict_computed_none = cnnsizehelper.get_slice_dict(None, blobnames_to_extract)
             self.assertEqual(slice_dict_correct_none, slice_dict_computed_none)
 
-    @unittest.skipUnless(PY2, 'caffe only runs well on Python 2')
     def test_caffe_feature_extraction(self):
         for net_name in net_info_dict:
+            if net_name in net_to_skip:
+                continue
             print(net_name)
             net_info_this = net_info_dict[net_name]
             net_this = caffe_network_construction.create_predefined_net(net_name, load_weight=False)
@@ -466,7 +463,7 @@ class MyTestCase(unittest.TestCase):
             _fill_weight_random(net_this, rng_seed=0)
             _fill_weight_random(net_this_2, rng_seed=0)
 
-            for layer_name, param in net_this_2.params.iteritems():
+            for layer_name, param in net_this_2.params.items():
                 for idx in range(len(param)):
                     self.assertFalse(np.may_share_memory(param[idx].data, net_this.params[layer_name][idx].data))
                     self.assertTrue(np.array_equal(param[idx].data, net_this.params[layer_name][idx].data))
@@ -570,9 +567,10 @@ class MyTestCase(unittest.TestCase):
                     self.assertFalse(np.may_share_memory(blob1, blob2))
                 del computed_extracted_features_none
 
-    @unittest.skipUnless(PY2, 'caffe only runs well on Python 2')
     def test_caffe_feature_extraction_from_smaller_ones(self):
         for net_name in net_info_dict:
+            if net_name in net_to_skip:
+                continue
             print(net_name)
             net_info_this = net_info_dict[net_name]
             net_this = caffe_network_construction.create_predefined_net(net_name, load_weight=False)
@@ -585,7 +583,7 @@ class MyTestCase(unittest.TestCase):
             _fill_weight_random(net_this, rng_seed=0)
             caffe_network_construction.fill_weights(net_this, net_this_smaller)
 
-            for layer_name, param in net_this_smaller.params.iteritems():
+            for layer_name, param in net_this_smaller.params.items():
                 for idx in range(len(param)):
                     self.assertFalse(np.may_share_memory(param[idx].data, net_this.params[layer_name][idx].data))
                     self.assertTrue(np.array_equal(param[idx].data, net_this.params[layer_name][idx].data))
