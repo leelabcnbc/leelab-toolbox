@@ -1,7 +1,6 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import numpy as np
 from collections import defaultdict
-import time
 
 
 def reshape_blobs(net, input_blobs, batch_size):

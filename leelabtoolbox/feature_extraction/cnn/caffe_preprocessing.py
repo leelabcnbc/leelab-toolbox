@@ -1,6 +1,5 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-import os.path
 from copy import deepcopy
 
 import numpy as np
@@ -8,9 +7,7 @@ import numpy as np
 try:
     import caffe
 except ImportError:
-    pass
-
-from . import dir_dict
+    caffe = None
 
 # load the stat ImageNet image (as distributed with Caffe) for subtraction
 from .generic_preprocessing import caffe_mu_bgr as imagenet_mu

@@ -6,7 +6,7 @@ from os import remove
 try:
     import caffe
 except ImportError:
-    pass
+    caffe = None
 
 from .caffe_network_definitions import net_info_dict, get_prototxt_bytes
 
@@ -59,7 +59,7 @@ def fill_weights(src_net, dest_net):
     assert set(dest_net.params.keys()) <= set(src_net.params.keys()), "some layers non existent in src net!"
 
     # changing value in place is safe.
-    for layer_name, param in dest_net.params.iteritems():
+    for layer_name, param in dest_net.params.items():
         assert len(param) == len(src_net.params[layer_name])
         for idx in range(len(param)):
             param[idx].data[...] = src_net.params[layer_name][idx].data
