@@ -2,7 +2,8 @@
 
 conda install --yes caffe
 conda install --yes --no-update-dependencies -c conda-forge scikit-learn joblib scikit-image h5py
-pip install imagen
+# unneeded right now, as it causes some problem for installing dependencies on 06/30/2017.
+# pip install imagen
 # TODO: add spams if using Python 2.7
 
 # TODO: install matlab plugin
