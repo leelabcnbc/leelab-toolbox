@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-conda install --yes caffe
+conda install --yes caffe gflags=2.1.2
 conda install --yes --no-update-dependencies -c conda-forge scikit-learn joblib scikit-image h5py
 # unneeded right now, as it causes some problem for installing dependencies on 06/30/2017.
 # pip install imagen
