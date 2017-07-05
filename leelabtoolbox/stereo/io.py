@@ -12,9 +12,31 @@ _brown_field_maping = {
     'intensity': 'intensity_unk',
 }
 
+
 # helpers for brown database
-# notice that the properties here are not standard.
+# notice that the properties here are not in standard names.
 # bearing is more like elevation/inclination/latitude, and inclination is azimuth/longitude
+
+def brown_raw_to_retina2_sph(old, bearing_factor=2):
+    # convert the result from read_brown_image_image_database(_lee) to standard names
+    # and units in retina2 sph format.
+
+    assert set(old.keys()) == {'range', 'bearing', 'inclination', 'intensity'}
+    new_data = OrderedDict()
+    # in order of d, lat, lon, last intensity, which kept unchanged.
+    # also, I will mask those not available ones to NaN
+    new_data['distance'] = old['range'].copy()
+    new_data['latitude'] = np.pi / 2 - old['bearing'] * bearing_factor
+    new_data['longitude'] = -old['inclination']
+    # so things will be in front.
+    longitude_shift = -np.mean(new_data['longitude'])
+    new_data['longitude'] += longitude_shift
+    new_data['longitude_shift'] = longitude_shift
+    new_data['intensity'] = old['intensity'].copy()
+    new_data['distance_mask'] = new_data['distance'] == 0
+    new_data['intensity_mask'] = new_data['intensity'] == 0
+    return new_data
+
 
 def read_brown_image_image_database(fname):
     """parse a single .bin file from brown image database (http://www.dam.brown.edu/ptg/brid/range/index.html).

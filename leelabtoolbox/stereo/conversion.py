@@ -1,11 +1,15 @@
 """some conversion utilities"""
 from __future__ import division, unicode_literals, print_function, absolute_import
 import numpy as np
-
+from collections import namedtuple
 
 # the conversion between spherical and 3D Cartesian follows convention in
 # <https://github.com/astropy/astropy/blob/v1.3.x/astropy/coordinates/representation.py#L956-L987>
 # as well as MATLAB https://www.mathworks.com/help/matlab/ref/sph2cart.html
+
+CoordinatesCart = namedtuple('CoordinatesCart', ('x', 'y', 'z'))
+CoordinatesSph = namedtuple('CoordinatesSph', ('d', 'lat', 'lon'))
+
 
 def _check_sph_range(d, lat, lon, convention):
     assert np.all(d > 0)  # simply don't think about ambiguous case.
@@ -82,7 +86,7 @@ def sph2cart(d, lat, lon, convention='standard'):
         raise ValueError('unsupported convention!')
     _check_all_data_finite(x, y, z)
 
-    return x, y, z
+    return CoordinatesCart(x, y, z)
 
 
 def cart2sph(x, y, z, convention='standard'):
@@ -116,4 +120,4 @@ def cart2sph(x, y, z, convention='standard'):
         raise ValueError('unsupported convention!')
     _check_sph_range(r, lat, lon, convention)
     _check_all_data_finite(r, lat, lon)
-    return r, lat, lon
+    return CoordinatesSph(r, lat, lon)
