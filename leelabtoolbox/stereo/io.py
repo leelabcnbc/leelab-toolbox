@@ -12,6 +12,9 @@ _brown_field_maping = {
     'intensity': 'intensity_unk',
 }
 
+# helpers for brown database
+# notice that the properties here are not standard.
+# bearing is more like elevation/inclination/latitude, and inclination is azimuth/longitude
 
 def read_brown_image_image_database(fname):
     """parse a single .bin file from brown image database (http://www.dam.brown.edu/ptg/brid/range/index.html).
@@ -101,6 +104,29 @@ def read_brown_image_image_database_lee(fname):
     available at `brown_range/brown_range_leelab` of Lee Lab dataset server.
 
     will give same output as in `read_brown_image_image_database`.
+
+    below is some part of README from original dataset.
+
+    About the variables in the .mat files:
+
+    Every range image is stored as a structure with the following organization:
+
+    r.range_m     distance (polar coordinates!) in meters to object
+                    A zero value means that the data point is missing;
+                    This will, for example, happen when an object is out
+                    of range.
+
+    r.intensity_unk   reflectance image for laser range-finder
+                        (again, zero values where data is missing)
+
+    bearing_rad       angles for vertical direction,
+                        NOTE: Should be multiplied with 2 for radians!
+                        The LRF starts scanning at about 0.89 rad or 51 deg,
+                        and ends at about 2.28 rad or 131 deg
+                        (0 is up, pi/2 is straight forward, and pi is down).
+
+
+    inclination_rad   angles for horizontal direction (in radians)
     """
     result_raw = loadmat(fname)
 
@@ -108,7 +134,7 @@ def read_brown_image_image_database_lee(fname):
 
     for new_f, old_f in _brown_field_maping.items():
         # unpack struct
-        old_element = result_raw['r'][old_f][0,0]
+        old_element = result_raw['r'][old_f][0, 0]
         result[new_f] = old_element.astype(np.float64)
         assert np.all(np.isfinite(result[new_f]))
 
