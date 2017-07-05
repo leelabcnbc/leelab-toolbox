@@ -75,3 +75,10 @@ blob_corresponding_info['vgg19'] = OrderedDict([('conv1_1', 'features.1'),
                                                 ('pool5', 'features.36'),
                                                 ('fc6', 'classifier.1'),
                                                 ('fc7', 'classifier.4')])
+
+blob_corresponding_reverse_info = dict()
+for net_name, net_info in blob_corresponding_info.items():
+    blob_corresponding_reverse_info[net_name] = OrderedDict()
+    for x, y in net_info.items():
+        blob_corresponding_reverse_info[net_name][y] = x
+    assert len(blob_corresponding_reverse_info[net_name]) == len(net_info)
