@@ -20,11 +20,20 @@ _brown_field_maping = {
 def brown_raw_to_retina2_sph(old, bearing_factor=2):
     # convert the result from read_brown_image_image_database(_lee) to standard names
     # and units in retina2 sph format.
+    # in addition, mask and radian per pixel will be provided.
 
     assert set(old.keys()) == {'range', 'bearing', 'inclination', 'intensity'}
     new_data = OrderedDict()
     # in order of d, lat, lon, last intensity, which kept unchanged.
     # also, I will mask those not available ones to NaN
+
+    # radian per pixel
+    # I do this on raw data, since here, data in later row/col have larger value,
+    # and this fits with np.diff
+    rdp_horizontal = np.diff(old['inclination'], 1, axis=1).mean()
+    rdp_vertical = np.diff(bearing_factor * old['bearing'], 1, axis=0).mean()
+    assert rdp_horizontal > 0 and rdp_vertical > 0
+
     new_data['distance'] = old['range'].copy()
     new_data['latitude'] = np.pi / 2 - old['bearing'] * bearing_factor
     new_data['longitude'] = -old['inclination']
@@ -35,6 +44,9 @@ def brown_raw_to_retina2_sph(old, bearing_factor=2):
     new_data['intensity'] = old['intensity'].copy()
     new_data['distance_mask'] = new_data['distance'] == 0
     new_data['intensity_mask'] = new_data['intensity'] == 0
+    new_data['radian_per_pixel_vertical'] = rdp_vertical
+    new_data['radian_per_pixel_horizontal'] = rdp_horizontal
+
     return new_data
 
 
