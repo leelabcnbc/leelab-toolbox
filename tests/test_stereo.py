@@ -16,8 +16,8 @@ class MyTestCase(unittest.TestCase):
 
     def test_io_browndataset(self):
         # check that results from the two are the same, as well as with raw lee version using loadmat.
-        res1 = io.read_brown_image_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V1_4.mat'))
-        res2 = io.read_brown_image_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V1_4.bin'))
+        res1 = io.read_brown_image_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat'))
+        res2 = io.read_brown_image_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.bin'))
         self.assertEqual(set(res1.keys()), set(res2.keys()))
 
         _error_standards = {
