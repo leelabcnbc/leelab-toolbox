@@ -488,6 +488,54 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue(np.allclose(l1, l2, atol=1e-6))
             self.assertTrue(np.allclose(r1, r2, atol=1e-6))
 
+    def test_xiong_computation(self):
+        # load old data
+        ref_data = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'brown', 'test_xiong_computation.mat'))
+        disp_xiong = ref_data['patchDisp_reshaped_xiong']
+        disp_ref = ref_data['patchDisp_reshaped']
+
+        # then let's compute it using legacy version as well as new version.
+        xyz_data = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'brown', 'V1_11_xyz.mat'))['V1_11_xyz']
+        xyz_data = np.transpose(xyz_data, (2, 0, 1))
+        fixation_index = (255, 1237)
+        rowIndex = slice(fixation_index[0] - 100, fixation_index[0] + 101)
+        colIndex = slice(fixation_index[1] - 100, fixation_index[1] + 101)
+        fixationThis = xyz_data[:, fixation_index[0], fixation_index[1]]
+        fixationThis = fixationThis / norm(fixationThis) * 3.9280
+        patchXYZ = xyz_data[:, rowIndex, colIndex]
+        # make all nan to be 1.
+        mask = np.isnan(patchXYZ[0])
+        assert np.array_equal(mask, np.isnan(patchXYZ[1]))
+        assert np.array_equal(mask, np.isnan(patchXYZ[2]))
+        patchXYZ[:, mask] = 1
+
+        disp_legacy = conversion.cart2disparity(*patchXYZ, fixation_point=fixationThis, infinite_fixation=False,
+                                                ipd=0.065,
+                                                legacy=True)
+        disp_new = conversion.cart2disparity(*patchXYZ, fixation_point=fixationThis, infinite_fixation=False, ipd=0.065,
+                                             legacy=False)
+
+        disp_legacy = -disp_legacy / np.pi * 180
+        disp_new = -disp_new / np.pi * 180
+
+        self.assertEqual(disp_xiong.shape, (201, 201))
+        self.assertEqual(disp_ref.shape, (201, 201))
+        self.assertEqual(disp_legacy.shape, (201, 201))
+        self.assertEqual(disp_new.shape, (201, 201))
+        valid_mask = np.logical_not(mask)
+
+        # xiong's method (which follows 2008 Yang Liu's paper) is simply wrong.
+        # check figure of test_xiong_computation.
+        # his method is only right for points in same plane as eyes and lines of sight,
+        # assuming that pixel per degree is really uniform.
+        # for other points, his method will assume points are further than they actually are.
+        # because he used raw range, instead of *projection* of range on the plane when computing x_p and z_p.
+
+        self.assertTrue(np.allclose(disp_legacy[valid_mask], disp_ref[valid_mask], atol=1e-6))
+
+        print('correct vs. xiong', abs(disp_new[valid_mask] - disp_xiong[valid_mask]).max())
+        print('correct vs. before', abs(disp_new[valid_mask] - disp_ref[valid_mask]).max())
+
 
 if __name__ == '__main__':
     unittest.main()
