@@ -25,21 +25,46 @@ class MyTestCase(unittest.TestCase):
         numpatches_list = [1, numpatch_more]
         patchsize_list = product(range(1, 4), range(1, 4))  # 16 combinations
         buff_list = product(range(3), range(3))  # 9 combinations
-        for trial_idx, (numim, numpatches, patchsize, buff) in enumerate(
-                product(numim_list, numpatches_list, patchsize_list, buff_list)):
+        nan_level_list = [None, 'some']
+        for trial_idx, (numim, numpatches, patchsize, buff, nan_level_this) in enumerate(
+                product(numim_list, numpatches_list, patchsize_list, buff_list, nan_level_list)):
+            print(numim, numpatches, patchsize, buff, nan_level_this)
             # subTest is not supported in 2.7
             # with self.subTest(numim=numim, numpatches=numpatches, patchsize=patchsize, buff=buff):
             # at least create images of size bigger than (buff[0]*2+patchsize[0]) by (buff[1]*2+patchsize[1])
             # add add at most 5
             min_height = buff[0] * 2 + patchsize[0]
             min_width = buff[1] * 2 + patchsize[1]
+
+            if nan_level_this is None:
+                nan_level = None
+            else:
+                assert nan_level_this == 'some'
+                nan_level = rng_state.rand()
+
             image_list = []
+
             for _ in range(numim):
                 height_this = rng_state.randint(min_height, min_height + 5 + 1)
                 width_this = rng_state.randint(min_width, min_width + 5 + 1)
                 image_list.append(rng_state.randn(height_this, width_this))
             result, location_list = transformers.sampling_random(image_list, patchsize, numpatches, buff=buff,
-                                                                 seed=0, return_locations=True)
+                                                                 seed=0, return_locations=True, nan_level=nan_level,
+                                                                 no_nan_loc=None)
+            if nan_level is not None:
+                # check that when changing no_nan_loc, I don't get any difference.
+                # this is a pretty weak check.
+                result_debug, location_list_debug = transformers.sampling_random(image_list, patchsize, numpatches,
+                                                                                 buff=buff,
+                                                                                 seed=0, return_locations=True,
+                                                                                 nan_level=nan_level,
+                                                                                 no_nan_loc=(slice(None), slice(None)))
+                self.assertTrue(np.array_equal(result, result_debug))
+                self.assertEqual(len(location_list), len(location_list_debug))
+                for idx in range(len(location_list)):
+                    self.assertTrue(np.array_equal(location_list[idx],
+                                                   location_list_debug[idx]))
+
             if numpatches == numpatch_more and numim == 1:
                 # check that every possible one is covered, no more, no less.
                 location_this = location_list[0]
@@ -53,7 +78,8 @@ class MyTestCase(unittest.TestCase):
             # not used at all.
             result_2, location_list_2 = transformers.sampling_random(image_list, patchsize, numpatches, buff=buff,
                                                                      seed=1, fixed_locations=location_list,
-                                                                     return_locations=True)
+                                                                     return_locations=True, nan_level=nan_level,
+                                                                     no_nan_loc=None)
 
             self.assertTrue(np.array_equal(result, result_2))
             self.assertEqual(len(location_list), len(location_list_2))
@@ -81,6 +107,8 @@ class MyTestCase(unittest.TestCase):
                                                                   'fixed_locations': None,
                                                                   'verbose': False,
                                                                   'random_buff': buff,
+                                                                  'nan_level': nan_level,
+                                                                  'no_nan_loc': None,
                                                                   }).transform(image_list)
             self.assertTrue(np.array_equal(result, result_4))
             # call the transformer interface with returned locations.
@@ -91,6 +119,8 @@ class MyTestCase(unittest.TestCase):
                                                                   'fixed_locations': location_list,
                                                                   'verbose': False,
                                                                   'random_buff': buff,
+                                                                  'nan_level': nan_level,
+                                                                  'no_nan_loc': None,
                                                                   }).transform(image_list)
             self.assertTrue(np.array_equal(result, result_5))
 
@@ -103,6 +133,8 @@ class MyTestCase(unittest.TestCase):
                                                                        'fixed_locations': None,
                                                                        'verbose': False,
                                                                        'random_buff': buff,
+                                                                       'nan_level': nan_level,
+                                                                       'no_nan_loc': None,
                                                                        }).transform(image_list)
                 self.assertTrue(np.array_equal(result, result_4b))
                 # call the transformer interface with returned locations.
@@ -113,6 +145,8 @@ class MyTestCase(unittest.TestCase):
                                                                        'fixed_locations': location_list,
                                                                        'verbose': False,
                                                                        'random_buff': buff,
+                                                                       'nan_level': nan_level,
+                                                                       'no_nan_loc': None,
                                                                        }).transform(image_list)
                 self.assertTrue(np.array_equal(result, result_5b))
 
@@ -125,6 +159,8 @@ class MyTestCase(unittest.TestCase):
                                                                        'fixed_locations': None,
                                                                        'verbose': False,
                                                                        'random_buff': buff[0],
+                                                                       'nan_level': nan_level,
+                                                                       'no_nan_loc': None,
                                                                        }).transform(image_list)
                 self.assertTrue(np.array_equal(result, result_4c))
                 # call the transformer interface with returned locations.
@@ -135,6 +171,8 @@ class MyTestCase(unittest.TestCase):
                                                                        'fixed_locations': location_list,
                                                                        'verbose': False,
                                                                        'random_buff': buff[0],
+                                                                       'nan_level': nan_level,
+                                                                       'no_nan_loc': None,
                                                                        }).transform(image_list)
                 self.assertTrue(np.array_equal(result, result_5c))
 
@@ -260,7 +298,9 @@ class MyTestCase(unittest.TestCase):
             'random_seed': 0,
             'fixed_locations': None,  # should be an iterable of len 1 or len of images, each
             # being a n_patch x 2 array telling the row and column of top left corner.
-            'verbose': True
+            'verbose': True,
+            'nan_level': None,
+            'no_nan_loc': None,
         }
         pars_gamma_transform = {'gamma': 0.5, 'scale_factor': 1.0, 'verbose': False}
         pars_flattening = {}
@@ -311,25 +351,25 @@ class MyTestCase(unittest.TestCase):
                           }
 
         pars_no_cutoff = {'oneOverFWhitening':
-                              {
-                               'cutoff': False,  # whether do cutoff frequency or not.
-                               }
-                          }
+            {
+                'cutoff': False,  # whether do cutoff frequency or not.
+            }
+        }
 
         pars_change_crop = {'oneOverFWhitening':
-                                {
-                                 'central_clip': (64, 128),
-                                 }
-                            }
+            {
+                'central_clip': (64, 128),
+            }
+        }
 
         pars_change_crop_pure = {'oneOverFWhitening':
-                                     {
-                                      'central_clip': (64, 128),
-                                      # clip the central central_clip[0] x central_clip[1] part in the frequency
-                                      # domain. by default, don't do anything.
-                                      'no_filter': True,  # useful when only want to do central_clip,
-                                      }
-                                 }
+            {
+                'central_clip': (64, 128),
+                # clip the central central_clip[0] x central_clip[1] part in the frequency
+                # domain. by default, don't do anything.
+                'no_filter': True,  # useful when only want to do central_clip,
+            }
+        }
 
         pipeline_default = pipeline.preprocessing_pipeline(steps_naive, pars_naive, order=steps_naive)[0]
         pipeline_change_f0 = pipeline.preprocessing_pipeline(steps_naive, pars_change_f0, order=steps_naive)[0]
@@ -365,10 +405,10 @@ class MyTestCase(unittest.TestCase):
         # first, test default argument
         steps_naive = ['oneOverFWhitening']
         pars_naive = {'oneOverFWhitening':
-                          {
-                           'n_jobs': -1,
-                           }
-                      }
+            {
+                'n_jobs': -1,
+            }
+        }
 
         pars_change_f0 = {'oneOverFWhitening':
                               {'f_0': 40,  # cut off frequency, in cycle / image. 0.4*mean(H, W) by default
@@ -377,26 +417,26 @@ class MyTestCase(unittest.TestCase):
                           }
 
         pars_no_cutoff = {'oneOverFWhitening':
-                              {
-                               'cutoff': False,  # whether do cutoff frequency or not.
-                               'n_jobs': -1,
-                               }
-                          }
+            {
+                'cutoff': False,  # whether do cutoff frequency or not.
+                'n_jobs': -1,
+            }
+        }
 
         pars_change_crop = {'oneOverFWhitening':
-                                {
-                                 'central_clip': (64, 128),
-                                 'n_jobs': -1,
-                                 }
-                            }
+            {
+                'central_clip': (64, 128),
+                'n_jobs': -1,
+            }
+        }
 
         pars_change_crop_pure = {'oneOverFWhitening':
-                                     {
-                                      'central_clip': (64, 128),
-                                      'no_filter': True,  # useful when only want to do central_clip,
-                                      'n_jobs': -1,
-                                      }
-                                 }
+            {
+                'central_clip': (64, 128),
+                'no_filter': True,  # useful when only want to do central_clip,
+                'n_jobs': -1,
+            }
+        }
 
         pipeline_default = pipeline.preprocessing_pipeline(steps_naive, pars_naive, order=steps_naive)[0]
         pipeline_change_f0 = pipeline.preprocessing_pipeline(steps_naive, pars_change_f0, order=steps_naive)[0]
