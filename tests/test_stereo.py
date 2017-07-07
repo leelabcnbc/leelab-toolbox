@@ -246,7 +246,9 @@ class MyTestCase(unittest.TestCase):
 
             # generate points that are in front of eye, and also on horoptor
             def generate_data(shape, z):
-                # generate data on the circle defined by eyes and (0, 0, -z).
+                # generate data on the cylinder defined by eyes and (0, 0, -z).
+                # check Figures 7.12 and 7.13 of book Binocular Vision and Stereopsis
+                # about VM circle.
                 shift = get_vm_circle_center(z)
                 rad = norm(shift[2] + z)
                 # essentially, generate one by one.

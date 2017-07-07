@@ -1,8 +1,19 @@
 """some conversion utilities
 
-overall, math in this module follows those in Chapter 7 of Binocular Vision and Stereopsis (Oxford Psychology Series),
-by Ian P. Howard, Brian J. Rogers, where gun turret coordinate system is recommended (pp. 240, Summary).
+overall, coordinate system in this module follows those in
+Chapter 7 of Binocular Vision and Stereopsis (Oxford Psychology Series),
+by Ian P. Howard, Brian J. Rogers, 1995, where gun turret coordinate system is recommended (pp. 240, Summary).
 gun turret model is same as the usual spherical coordinate system.
+
+the definition of disparity used here follows that
+in "Disparity statistics in natural scenes",
+by Yang Liu; Alan C. Bovik; Lawrence K. Cormack, doi:10.1167/8.11.19
+
+It's consistent with the book chapter, which talks about relative disparity. Check 7.1.4,
+and compare Figure 7.12 with Figure 1 of above paper.
+
+In this module, we always compute the relative disparity relative
+to fixation point (whose disparity is zero in our definition)
 """
 from __future__ import division, unicode_literals, print_function, absolute_import
 import numpy as np
