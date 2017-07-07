@@ -1,4 +1,9 @@
-"""some conversion utilities"""
+"""some conversion utilities
+
+overall, math in this module follows those in Chapter 7 of Binocular Vision and Stereopsis (Oxford Psychology Series),
+by Ian P. Howard, Brian J. Rogers, where gun turret coordinate system is recommended (pp. 240, Summary).
+gun turret model is same as the usual spherical coordinate system.
+"""
 from __future__ import division, unicode_literals, print_function, absolute_import
 import numpy as np
 from collections import namedtuple
