@@ -21,7 +21,6 @@ class MyTestCase(unittest.TestCase):
         # check that results from the two are the same, as well as with raw lee version using loadmat.
         res1 = io.read_brown_image_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat'))
         res2 = io.read_brown_image_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.bin'))
-        self.assertEqual(set(res1.keys()), set(res2.keys()))
 
         _error_standards = {
             'range': 0.01,
@@ -29,12 +28,18 @@ class MyTestCase(unittest.TestCase):
             'inclination': 1e-3,
             'intensity': 1e-6,
         }
+        self.assertEqual(set(res1.keys()), set(res2.keys()))
+        self.assertEqual(set(res1.keys()), set(_error_standards.keys()))
 
         for key in res1:
             v1 = res1[key]
             v2 = res2[key]
             self.assertTrue(v1.shape == v2.shape)
             self.assertTrue(abs(v1 - v2).max() < _error_standards[key])
+
+        # additional two checks, on missing data.
+        self.assertTrue(np.array_equal(res1['range'] == 0, res2['range'] == 0))
+        self.assertTrue(np.array_equal(res1['intensity'] == 0, res2['intensity'] == 0))
 
     def test_cart_and_sph_retina2(self):
         # it's unlikely that I will generate data with 0,0,0.
@@ -170,6 +175,30 @@ class MyTestCase(unittest.TestCase):
             xyz_this = image_array[:, :, i_case]
             disparity_map_this = conversion.cart2disparity(*xyz_this, fixation_point=f_this,
                                                            infinite_fixation=False, ipd=0.065, legacy=True)[np.newaxis]
+            # disparity_map_this_correct = conversion.cart2disparity(*xyz_this, fixation_point=f_this,
+            #                                                infinite_fixation=False, ipd=0.065, legacy=False)[np.newaxis]
+            disparity_map_this_ref = results_all[i_case, 0]
+            self.assertEqual(disparity_map_this.shape, disparity_map_this_ref.shape)
+            self.assertTrue(np.allclose(disparity_map_this, disparity_map_this_ref, atol=1e-6))
+            # print(abs(disparity_map_this_correct-disparity_map_this_ref).max())
+
+    def test_cart2disparity_with_ref_new(self):
+        # test with new MATLAB implementations.
+        ref_data = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'brown', 'test_cart2disparity_new_ref.mat'))
+        image_array = ref_data['ImageArray']
+        f_array = ref_data['FArray']
+        results_all = ref_data['results_all']
+
+        num_case = image_array.shape[-1]
+        assert image_array.shape == (3, 1000, num_case)
+        assert f_array.shape == (3, num_case)
+        assert results_all.shape == (num_case, 1)
+
+        for i_case in range(num_case):
+            f_this = f_array[:, i_case]
+            xyz_this = image_array[:, :, i_case]
+            disparity_map_this = conversion.cart2disparity(*xyz_this, fixation_point=f_this,
+                                                           infinite_fixation=False, ipd=0.065)[np.newaxis]
             # disparity_map_this_correct = conversion.cart2disparity(*xyz_this, fixation_point=f_this,
             #                                                infinite_fixation=False, ipd=0.065, legacy=False)[np.newaxis]
             disparity_map_this_ref = results_all[i_case, 0]

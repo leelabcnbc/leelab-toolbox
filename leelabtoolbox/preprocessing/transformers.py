@@ -3,9 +3,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from functools import partial
 
 import numpy as np
+from joblib import delayed, Parallel
 from numpy.fft import fft2, ifft2, fftshift, ifftshift
 from sklearn.preprocessing import FunctionTransformer
-from joblib import delayed, Parallel
 
 from ..util import normalize_random_state, make_2d_array
 
@@ -91,7 +91,7 @@ def gamma_transform(images, gamma=0.5, scale_factor=1.0, verbose=False):
     return scale_factor * np.power(np.asarray(images), gamma)
 
 
-def _sampling_random_handle_pars(n_img, patchsize, numpatches, buff, seed, fixed_locations):
+def _sampling_random_handle_pars(n_img, patchsize, numpatches, buff, seed, fixed_locations, nan_level, no_nan_loc):
     rng_state = normalize_random_state(seed)
     if fixed_locations is not None:
         fixed_locations_flag = True
@@ -113,13 +113,16 @@ def _sampling_random_handle_pars(n_img, patchsize, numpatches, buff, seed, fixed
     patchsize_h, patchsize_w = np.broadcast_to(patchsize, (2,))
     buff_h, buff_w = np.broadcast_to(buff, (2,))
 
+    if nan_level is not None:
+        assert np.isscalar(nan_level) and 0 <= nan_level <= 1
+
     return (rng_state, sample_per_image,
             patchsize_h, patchsize_w, buff_h, buff_w,
-            fixed_locations_flag, fixed_locations_single)
+            fixed_locations_flag, fixed_locations_single, nan_level, no_nan_loc)
 
 
 def _sampling_random_get_locations(idx, image, n_img, sample_per_image, numpatches, rng_state,
-                                   patchsize_h, patchsize_w, buff_h, buff_w):
+                                   patchsize_h, patchsize_w, buff_h, buff_w, nan_level, no_nan_loc):
     height, width = image.shape[:2]
     # determine how many points to sample.
     if idx + 1 < n_img:
@@ -131,13 +134,33 @@ def _sampling_random_get_locations(idx, image, n_img, sample_per_image, numpatch
     locations_this = np.zeros((sample_this_image, 2), dtype=np.uint16)
     h_max = height - 2 * buff_h - patchsize_h
     w_max = width - 2 * buff_w - patchsize_w
-    for idx, (buff_this, max_this) in enumerate(zip((buff_h, buff_w), (h_max, w_max))):
-        locations_this[:, idx] = buff_this + rng_state.randint(low=0, high=max_this + 1, size=(sample_this_image,))
+    assert h_max >= 0 and w_max >= 0
+    if nan_level is None:
+        for dim_idx, (buff_this, max_this) in enumerate(zip((buff_h, buff_w), (h_max, w_max))):
+            locations_this[:, dim_idx] = buff_this + rng_state.randint(low=0, high=max_this + 1,
+                                                                       size=(sample_this_image,))
+    else:
+        # I should consider on patch at a time.
+        for patch_idx in range(sample_this_image):
+            ok_flag = False
+            while not ok_flag:
+                patch_loc_this = (buff_h + rng_state.randint(low=0, high=h_max + 1),
+                                  buff_w + rng_state.randint(low=0, high=w_max + 1))
+                patch_this = image[patch_loc_this[0]:patch_loc_this[0] + patchsize_h,
+                             patch_loc_this[1]:patch_loc_this[1] + patchsize_w]
+                if np.isnan(patch_this).mean() <= nan_level:
+                    ok_flag = True
+                    if no_nan_loc is not None and np.isnan(patch_this[no_nan_loc]).any():
+                        ok_flag = False
+
+            locations_this[patch_idx] = np.array(patch_loc_this)
+
     return locations_this
 
 
 def sampling_random(images, patchsize, numpatches, buff=0, seed=None,
-                    fixed_locations=None, return_locations=False, verbose=False):
+                    fixed_locations=None, return_locations=False, verbose=False,
+                    nan_level=None, no_nan_loc=None):
     """
 
     Parameters
@@ -168,8 +191,14 @@ def sampling_random(images, patchsize, numpatches, buff=0, seed=None,
 
     (rng_state, sample_per_image,
      patchsize_h, patchsize_w, buff_h, buff_w,
-     fixed_locations_flag, fixed_locations_single) = _sampling_random_handle_pars(n_img, patchsize, numpatches, buff,
-                                                                                  seed, fixed_locations)
+     fixed_locations_flag, fixed_locations_single, nan_level, no_nan_loc) = _sampling_random_handle_pars(n_img,
+                                                                                                         patchsize,
+                                                                                                         numpatches,
+                                                                                                         buff,
+                                                                                                         seed,
+                                                                                                         fixed_locations,
+                                                                                                         nan_level,
+                                                                                                         no_nan_loc)
 
     for idx, image in enumerate(images):
         if verbose:
@@ -178,7 +207,8 @@ def sampling_random(images, patchsize, numpatches, buff=0, seed=None,
             locations_this = fixed_locations[0] if fixed_locations_single else fixed_locations[idx]
         else:
             locations_this = _sampling_random_get_locations(idx, image, n_img, sample_per_image, numpatches, rng_state,
-                                                            patchsize_h, patchsize_w, buff_h, buff_w)
+                                                            patchsize_h, patchsize_w, buff_h, buff_w, nan_level,
+                                                            no_nan_loc)
 
         # do patch extraction
         assert locations_this.ndim == 2 and locations_this.shape[1] == 2
@@ -208,7 +238,9 @@ def sampling_transformer(step_pars):
                                            seed=step_pars['random_seed'],
                                            fixed_locations=step_pars['fixed_locations'],
                                            verbose=step_pars['verbose'],
-                                           buff=step_pars['random_buff']))
+                                           buff=step_pars['random_buff'],
+                                           nan_level=step_pars['nan_level'],
+                                           no_nan_loc=step_pars['no_nan_loc']))
     else:
         raise NotImplementedError("type {} not supported!".format(sampling_type))
 
@@ -344,7 +376,12 @@ register_transformer('sampling', sampling_transformer,
                          'random_seed': None,
                          'fixed_locations': None,  # should be an iterable of len 1 or len of images, each
                          # being a n_patch x 2 array telling the row and column of top left corner.
-                         'verbose': True
+                         'verbose': True,
+                         'nan_level': None,  # highest portion of nans in the sampled patches.
+                         # None (which means not care) or a number in [0,1].
+                         'no_nan_loc': None,  # when nan_level is not None, and if no_nan_loc not None,
+                         # that would mean that all elements indexed by it (can be anything to be used to
+                         # index a patch) must not be nan.
                      })
 register_transformer('removeDC', lambda _: FunctionTransformer(lambda x: x - np.mean(x, axis=1, keepdims=True)))
 register_transformer('flattening', lambda _: FunctionTransformer(make_2d_array))
