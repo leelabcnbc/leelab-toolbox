@@ -19,8 +19,8 @@ class MyTestCase(unittest.TestCase):
 
     def test_io_browndataset(self):
         # check that results from the two are the same, as well as with raw lee version using loadmat.
-        res1 = io.read_brown_image_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat'))
-        res2 = io.read_brown_image_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.bin'))
+        res1 = io.read_brown_range_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat'))
+        res2 = io.read_brown_range_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.bin'))
 
         _error_standards = {
             'range': 0.01,
@@ -117,7 +117,7 @@ class MyTestCase(unittest.TestCase):
     def test_brown_raw_to_sph_and_xyz(self):
         # test my brown conversion routine.
         example_scene_file = os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat')
-        scene_struct = io.brown_raw_to_retina2_sph(io.read_brown_image_image_database_lee(example_scene_file))
+        scene_struct = io.brown_raw_to_retina2_sph(io.read_brown_range_image_database_lee(example_scene_file))
 
         demo_struct = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'brown', 'brown_raw_to_sph_and_xyz_ref.mat'))
         # then make sure they are the same

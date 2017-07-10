@@ -50,7 +50,7 @@ def brown_raw_to_retina2_sph(old, bearing_factor=2):
     return new_data
 
 
-def read_brown_image_image_database(fname):
+def read_brown_range_image_database(fname):
     """parse a single .bin file from brown image database (http://www.dam.brown.edu/ptg/brid/range/index.html).
 
     a rewrite of `readrange_float.m` in `brown_range/brown_range_public` of Lee Lab dataset server.
@@ -132,7 +132,7 @@ def read_brown_image_image_database(fname):
     return result
 
 
-def read_brown_image_image_database_lee(fname):
+def read_brown_range_image_database_lee(fname):
     """parse a single .mat file from leelab version of Brown database,
 
     available at `brown_range/brown_range_leelab` of Lee Lab dataset server.
