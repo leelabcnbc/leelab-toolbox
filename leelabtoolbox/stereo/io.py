@@ -12,6 +12,14 @@ _brown_field_maping = {
     'intensity': 'intensity_unk',
 }
 
+_cmu_field_maping = {
+    'range': 0,
+    'optical_image': slice(1, 4),
+    'intensity': 4,
+    'bearing': 5,
+    'inclination': 6
+}
+
 
 # helpers for brown database
 # notice that the properties here are not in standard names.
@@ -173,3 +181,143 @@ def read_brown_range_image_database_lee(fname):
         assert np.all(np.isfinite(result[new_f]))
 
     return result
+
+
+def read_cmu_range_image_database(fname):
+    """parse a single .mat from from CMU range image database
+
+    available at `cmu_range` and `cmu_range_messy_but_useful`
+
+    some README of original dataset.
+
+    ----------------------------------------------
+    Data Format:
+
+    Each scan is stored as a Matlab file (version 7). Each file has a name in
+    the
+    form of "Scene_xxx_y.mat", where xxx is the scene index, and y is the index
+    of
+    the scan within that scene (some scenes were scanned several times). Each
+    matlab file contains the following variables:
+
+    Data(:,:,1)        Range. Distance from the camera to the nearest object, in
+                       meters. A value of zero means no echo of the laser pulse
+                       was detected (this often happens for sky, shiny
+    surfaces,
+                       water, etc).
+    Data(:,:,2:4)      Color (in Red, Green, Blue order).
+    Data(:,:,5)        Intensity, or Signal Amplitude. This is the strength of
+                       the laser's echo signal. The laser's wavelength is near
+                       infrared.
+    Data(:,:,6)        Latitude (bearing) of measurement, in degrees, with
+                       respect to the camera. 90 is straight ahead. 0 is
+                       directly overhead, and 180 is directly below the camera.
+    Data(:,:,7)        Longitude (inclination) of measurement, degrees, with
+                       respect to the camera. 180 is facing forward. Higher
+                       longitude values are to the left.
+
+    Scan_Index         For many scenes in our database, we have acquired
+                       multiple scans. For every scene, each scan of that scene
+                       has a unique Scan_Index, counting up starting from 1.
+    Stereo_Position    For several of the scenes in the database, the image was
+                       re-scanned from multiple viewpoints (stereo). To to this,
+                       the camera tripod was placed on a pegboard, and the
+                       tripod was physically moved a set number of pegs
+                       rightward between scans. Although care was taken to keep
+                       the camera aligned between scans, some shifting using
+                       this method was inevitable. Stereo_Position lists the
+                       distance the camera was shifted rightward, in inches,
+                       since the first scan of that scene.
+
+    Year               Year of acquisition. Always 2002.
+    Month              Month of acquisition. Always 6 (June).
+    Day                Day of acquisition. From 20 to 25.
+    Hour               Hour of acquisition. Eastern Standard Time.
+    Minute             Minute of acquisition, roughly. Scans typically take
+                       several minutes.
+
+    Camera_Inclination The camera was always level with ground, except for scene
+                       #6 - a scan of the University of Pittsburgh Cathedral of
+                       Learning. I don't have the units for the camera
+                       inclination.
+    Compass_Heading    Direction the camera is facing, in degrees East of North.
+    North_Lon          Longitude of North, in the camera's coordinates (i.e.,
+                       Data(:,:,7)).
+
+    Solar_Altitude     Degrees vertical from the horizon. A value of 90 means
+                       the sun is directly overhead. A value of 0 means the sun
+                       is on the horizon.
+    Solar_Azimuth      Degrees East of North. A value of 0 means the sun is in
+                       the North. A value of 90 means the sun is in the East.
+    Solar_Lat          Latitude of the sun in the camera's coordinates (i.e.,
+                       Data(:,:,6)).
+    Solar_Lon          Longitude of the sun in the camera's coordinates (i.e.,
+                       Data(:,:,7)).
+
+    """
+
+    # here, I will only save the raw `Data`, as other are not that useful right now.
+    result_raw = loadmat(fname)
+
+    result = dict()
+
+    for new_f, old_f in _cmu_field_maping.items():
+        # unpack struct
+        old_element = result_raw['Data'][..., old_f]
+        result[new_f] = old_element.astype(np.float64)
+        assert np.all(np.isfinite(result[new_f]))
+
+    return result
+
+
+def cmu_raw_to_retina2_sph(old):
+    # convert the result from read_cmu_range_image_database(_lee) to standard names
+    # and units in retina2 sph format.
+    # in addition, mask, optical image, and degree per pixel will be provided.
+
+    assert set(old.keys()) == {'range', 'bearing', 'inclination', 'intensity', 'optical_image'}
+    new_data = OrderedDict()
+    # in order of d, lat, lon, last intensity, which kept unchanged.
+    # also, I will mask those not available ones to NaN
+
+    # all the masks are actually the same for CMU?
+    distance_mask = old['range'] == 0
+    intensity_mask = old['intensity'] == 0
+    bearing_mask = old['bearing'] == 0
+    inclination_mask = old['inclination'] == 0
+
+    # they should be all the same
+    for mask in (intensity_mask, bearing_mask, inclination_mask):
+        assert np.array_equal(distance_mask, mask)
+    valid_mask = np.logical_not(distance_mask)
+
+    bearing_old = old['bearing']
+    bearing_old[distance_mask] = np.nan
+    inclination_old = old['inclination']
+    inclination_old[distance_mask] = np.nan
+    ddp_horizontal = np.nanmean(np.diff(-inclination_old, 1, axis=1))
+    ddp_vertical = np.nanmean(np.diff(bearing_old, 1, axis=0))
+    assert ddp_horizontal > 0 and ddp_vertical > 0
+
+    new_data['distance'] = old['range'].copy()
+    new_data['latitude'] = np.pi / 2 - old['bearing'] * np.pi / 180
+    new_data['longitude'] = old['inclination'] * np.pi / 180  # bigger value on the left, consistent with my convention.
+    # so things will be in front.
+    longitude_shift = -np.mean(new_data['longitude'][valid_mask])
+    new_data['longitude'] += longitude_shift
+    new_data['longitude_shift'] = longitude_shift  # this shift is in radian
+    new_data['intensity'] = old['intensity'].copy()
+    new_data['mask'] = distance_mask
+    new_data['degree_per_pixel_vertical'] = ddp_vertical
+    new_data['degree_per_pixel_horizontal'] = ddp_horizontal
+    # not sure what unit is this image saved in. But I think it should be linearly proportional to actual luminance.
+    # to show it visually appealingly on a screen, you need to perform some gamma correction.
+    # see `/examples/stereo_cmu.ipynb` for an example.
+    new_data['optical_image'] = old['optical_image'].copy()
+
+    # this means that, some values in `longitude` and `latitude` is rubbish.
+    # maybe best to mask them with nan
+    new_data['latitude'][distance_mask] = np.nan
+    new_data['longitude'][distance_mask] = np.nan
+
+    return new_data
