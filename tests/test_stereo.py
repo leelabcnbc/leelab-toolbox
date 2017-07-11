@@ -19,8 +19,8 @@ class MyTestCase(unittest.TestCase):
 
     def test_io_browndataset(self):
         # check that results from the two are the same, as well as with raw lee version using loadmat.
-        res1 = io.read_brown_image_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat'))
-        res2 = io.read_brown_image_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.bin'))
+        res1 = io.read_brown_range_image_database_lee(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat'))
+        res2 = io.read_brown_range_image_database(os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.bin'))
 
         _error_standards = {
             'range': 0.01,
@@ -40,6 +40,22 @@ class MyTestCase(unittest.TestCase):
         # additional two checks, on missing data.
         self.assertTrue(np.array_equal(res1['range'] == 0, res2['range'] == 0))
         self.assertTrue(np.array_equal(res1['intensity'] == 0, res2['intensity'] == 0))
+
+    def test_io_utexas(self):
+        # check that results from the two are the same, as well as with raw lee version using loadmat.
+        res1 = io.read_utexas_natural_scene_stereo_database(
+            os.path.join(test_dir, 'stereo_ref', 'utexas', 'lRange005.mat'))
+        res2 = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'utexas', 'lRange005.mat'))
+
+        xyz_in_raw_convention = np.concatenate([res1['z'][..., np.newaxis],
+                                                res1['x'][..., np.newaxis],
+                                                res1['y'][..., np.newaxis]], axis=-1)
+        xyz_in_raw_ref = res2['rangeMap']
+        # their valid part should be the same.
+        nan_mask = res2['rangeImg'] == -1
+        valid_mask = np.logical_not(nan_mask)
+        self.assertTrue(np.array_equal(nan_mask, res1['mask']))
+        self.assertTrue(np.array_equal(xyz_in_raw_convention[valid_mask], xyz_in_raw_ref[valid_mask]))
 
     def test_cart_and_sph_retina2(self):
         # it's unlikely that I will generate data with 0,0,0.
@@ -117,7 +133,7 @@ class MyTestCase(unittest.TestCase):
     def test_brown_raw_to_sph_and_xyz(self):
         # test my brown conversion routine.
         example_scene_file = os.path.join(test_dir, 'stereo_ref', 'brown', 'V3_4.mat')
-        scene_struct = io.brown_raw_to_retina2_sph(io.read_brown_image_image_database_lee(example_scene_file))
+        scene_struct = io.brown_raw_to_retina2_sph(io.read_brown_range_image_database_lee(example_scene_file))
 
         demo_struct = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'brown', 'brown_raw_to_sph_and_xyz_ref.mat'))
         # then make sure they are the same
@@ -157,6 +173,36 @@ class MyTestCase(unittest.TestCase):
         datamap_ref = demo_struct['datamap']
         self.assertEqual(datamap.shape, datamap_ref.shape)
         self.assertTrue(np.allclose(datamap, datamap_ref, atol=1e-6))
+
+    def test_cmu_raw_to_xyz(self):
+        # test my brown conversion routine.
+        example_scene_file = os.path.join(test_dir, 'stereo_ref', 'cmu', '04.mat')
+        scene_struct = io.cmu_raw_to_retina2_sph(io.read_cmu_range_image_database(example_scene_file))
+
+        demo_struct = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'cmu', 'cmu_raw_to_xyz_ref.mat'))
+        # then make sure they are the same
+        mask = scene_struct['mask']
+        distance = scene_struct['distance']
+        valid_mask = np.logical_not(mask)
+        xyz_valid = conversion.sph2cart(scene_struct['distance'][valid_mask],
+                                        scene_struct['latitude'][valid_mask],
+                                        scene_struct['longitude'][valid_mask], convention='retina2')
+        xyz_valid = np.asarray(xyz_valid)
+
+        # compare xyz
+        xyz_3D = np.full(distance.shape + (3,), fill_value=np.nan, dtype=np.float64)
+        for idx, coord_one_axis in enumerate(xyz_valid):
+            xyz_3D[valid_mask, idx] = coord_one_axis
+        xyz_3D_ref = demo_struct['xyzMatrixArray']
+        self.assertEqual(xyz_3D.shape, xyz_3D_ref.shape)
+        self.assertTrue(np.allclose(xyz_3D, xyz_3D_ref, atol=1e-8, equal_nan=True))
+
+        # compare mask
+        self.assertTrue(np.array_equal(mask.ravel(order='F')[:, np.newaxis], demo_struct['noResultMask']))
+
+        # compare shift in azimuth
+        self.assertAlmostEqual(scene_struct['longitude_shift'] * 180 / np.pi, demo_struct['aziShiftArray'].ravel()[0],
+                               places=6)
 
     def test_cart2disparity_with_ref(self):
         # test with previous MATLAB implementations.
