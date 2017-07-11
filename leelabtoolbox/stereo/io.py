@@ -321,3 +321,27 @@ def cmu_raw_to_retina2_sph(old):
     new_data['longitude'][distance_mask] = np.nan
 
     return new_data
+
+
+def read_utexas_natural_scene_stereo_database(fname):
+    # open a file from Stereo Image and Range Data Collection of UT <http://natural-scenes.cps.utexas.edu/db.shtml>
+    # in retina2 xyz format
+    result_raw = loadmat(fname)
+    result = OrderedDict()
+    # they are ordered in Z, X, Y, in my convention.
+    xyz_raw = result_raw['rangeMap']
+    z = xyz_raw[:, :, 0]
+    x = xyz_raw[:, :, 1]
+    y = xyz_raw[:, :, 2]
+    result['x'] = x
+    result['y'] = y
+    result['z'] = z
+    nan_mask = result_raw['rangeImg'] == -1
+    valid_mask = np.logical_not(nan_mask)
+    distance_all = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    assert distance_all.shape == result_raw['rangeImg'].shape == valid_mask.shape
+    assert np.allclose(distance_all[valid_mask], result_raw['rangeImg'][valid_mask], atol=1e-3)
+
+    result['mask'] = nan_mask
+
+    return result
