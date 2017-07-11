@@ -41,6 +41,22 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue(np.array_equal(res1['range'] == 0, res2['range'] == 0))
         self.assertTrue(np.array_equal(res1['intensity'] == 0, res2['intensity'] == 0))
 
+    def test_io_utexas(self):
+        # check that results from the two are the same, as well as with raw lee version using loadmat.
+        res1 = io.read_utexas_natural_scene_stereo_database(
+            os.path.join(test_dir, 'stereo_ref', 'utexas', 'lRange005.mat'))
+        res2 = sio.loadmat(os.path.join(test_dir, 'stereo_ref', 'utexas', 'lRange005.mat'))
+
+        xyz_in_raw_convention = np.concatenate([res1['z'][..., np.newaxis],
+                                                res1['x'][..., np.newaxis],
+                                                res1['y'][..., np.newaxis]], axis=-1)
+        xyz_in_raw_ref = res2['rangeMap']
+        # their valid part should be the same.
+        nan_mask = res2['rangeImg'] == -1
+        valid_mask = np.logical_not(nan_mask)
+        self.assertTrue(np.array_equal(nan_mask, res1['mask']))
+        self.assertTrue(np.array_equal(xyz_in_raw_convention[valid_mask], xyz_in_raw_ref[valid_mask]))
+
     def test_cart_and_sph_retina2(self):
         # it's unlikely that I will generate data with 0,0,0.
         numberOfCases = 20
