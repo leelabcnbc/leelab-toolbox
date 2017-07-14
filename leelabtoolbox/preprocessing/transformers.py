@@ -363,6 +363,89 @@ def _get_simple_transformer(func):
     return (lambda pars: FunctionTransformer(partial(func, **pars)))
 
 
+def _create_index(r, c):
+    return slice(int(r.min()), int(r.max() + 1)), slice(int(c.min()), int(c.max() + 1))
+
+
+def put_in_canvas(images, canvas_size, canvas_color, center_loc, jitter,
+                  jitter_maxpixel, jitter_seed, external_jitter_list, return_jitter_list, return_pos_list):
+    """ put a variable sized image in a (usually) bigger canvas.
+
+    rewrite of enlarge_canvas_dataset from early vision toolbox project"""
+
+    assert canvas_size is not None and canvas_color is not None
+
+    # I always assume that image's first 2d is height and width.
+    pixel_shape = images[0].shape[2:]
+    canvas_size = tuple(np.broadcast_to(canvas_size, (2,)).astype(np.int64, copy=False))
+    canvas_color = np.broadcast_to(canvas_color, pixel_shape)
+    if center_loc is None:
+        center_loc = np.asarray(canvas_size) / 2.0
+    center_loc = np.broadcast_to(center_loc, (2,))
+    image_template = np.empty(canvas_size + pixel_shape, dtype=images[0].dtype)
+    image_template[...] = canvas_color
+
+    if jitter:
+        if external_jitter_list is not None:
+            jitterlist = np.array(external_jitter_list)
+        else:  # generate a jitter list.
+            jitter_maxpixel = np.broadcast_to(jitter_maxpixel, (2,)).astype(np.int64)
+            assert np.all(jitter_maxpixel >= 0)
+            jitter_rng_state = normalize_random_state(jitter_seed)
+            jitter_h = jitter_rng_state.randint(-jitter_maxpixel[0], jitter_maxpixel[0] + 1,
+                                                (len(images),))  # generate different row and col jitter!
+            jitter_w = jitter_rng_state.randint(-jitter_maxpixel[1], jitter_maxpixel[1] + 1,
+                                                (len(images),))  # generate different row and col jitter!
+            jitterlist = np.array([jitter_h, jitter_w]).T
+    else:
+        jitterlist = np.zeros((len(images), 2), dtype=np.int64)
+
+    assert jitterlist.shape == (len(images), 2)  # shape match.
+    jitterlist_int = jitterlist.astype(np.int64, copy=False)
+    assert np.array_equal(jitterlist, jitterlist_int)  # check all to be integers.
+    jitterlist = jitterlist_int
+
+    # then let's jit them and put in canvas.
+    images_new = []
+    pos_list = []
+    for idx, image in enumerate(images):
+        image_new_this = image_template.copy()
+        rowsthis, colsthis = image.shape[:2]
+        jitterthisr = jitterlist[idx, 0]
+        jitterthisc = jitterlist[idx, 1]
+
+        box_t, box_l = int(np.floor(center_loc[0] - rowsthis / 2.0)), int(np.floor(center_loc[1] - colsthis / 2.0))
+        box_t += jitterthisr
+        box_l += jitterthisc
+        pos_list.append((box_t, box_l))
+        row_index = np.arange(box_t, box_t + rowsthis)
+        col_index = np.arange(box_l, box_l + colsthis)
+
+        row_index_fix = np.logical_and(row_index >= 0, row_index < canvas_size[0])
+        col_index_fix = np.logical_and(col_index >= 0, col_index < canvas_size[1])
+
+        image_new_idx = _create_index(row_index[row_index_fix], col_index[col_index_fix])
+        image_old_idx = _create_index(np.flatnonzero(row_index_fix), np.flatnonzero(col_index_fix))
+
+        assert image_new_this[image_new_idx].shape == image[image_old_idx].shape
+        image_new_this[image_new_idx] = image[image_old_idx]
+
+        images_new.append(image_new_this)
+
+    result = (np.asarray(images_new),)
+
+    if return_jitter_list:
+        result += (jitterlist,)
+
+    if return_pos_list:
+        result += (np.array(pos_list),)
+
+    if len(result) == 1:
+        result = result[0]
+
+    return result
+
+
 register_transformer('gammaTransform', _get_simple_transformer(gamma_transform),
                      {'gamma': 0.5, 'scale_factor': 1.0, 'verbose': False})
 register_transformer('logTransform', _get_simple_transformer(log_transform),
@@ -399,4 +482,15 @@ register_transformer('oneOverFWhitening', _get_simple_transformer(whiten_olsh_le
                       'no_filter': False,  # useful when only want to do central_clip,
                       'cutoff': True,  # whether do cutoff frequency or not.
                       'n_jobs': 1,
+                      })
+register_transformer('putInCanvas', _get_simple_transformer(put_in_canvas),
+                     {'canvas_size': None,
+                      'canvas_color': None,
+                      'center_loc': None,
+                      'jitter': False,
+                      'jitter_maxpixel': 0,
+                      'jitter_seed': None,
+                      'external_jitter_list': None,
+                      'return_jitter_list': False,  # never set this to True if you chain transformers.
+                      'return_pos_list': False,  # never set this to True if you chain transformers.
                       })
