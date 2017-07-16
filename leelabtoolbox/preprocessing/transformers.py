@@ -446,6 +446,48 @@ def put_in_canvas(images, canvas_size, canvas_color, center_loc, jitter,
     return result
 
 
+# I don't use Imagen itself because it's defined in terms of relative size, which is not very useful
+# in my case.
+def _disk(x, y, height, gaussian_width):
+    """
+    Circular disk with Gaussian fall-off after the solid central region.
+    """
+    disk_radius = height / 2.0
+
+    distance_from_origin = np.sqrt(x ** 2 + y ** 2)
+    distance_outside_disk = distance_from_origin - disk_radius
+    sigmasq = gaussian_width * gaussian_width
+
+    if sigmasq == 0.0:
+        falloff = x * 0.0
+    else:
+        falloff = np.exp(np.divide(-distance_outside_disk * distance_outside_disk,
+                                   2 * sigmasq))
+    assert np.all(np.isfinite(falloff))
+    return np.where(distance_outside_disk <= 0, 1.0, falloff)
+
+
+def whole_image_aperture(images, size, gaussian_width, shift, background_color):
+    """rewrite of whole_image_aperture in early vision toolbox"""
+    assert np.isscalar(size)
+    height, width = images.shape[1:3]
+    pixel_shape = images.shape[3:]
+    background_color = np.broadcast_to(np.asarray(background_color), pixel_shape)
+    # assert height == width
+    shift = np.asarray(shift)
+    assert shift.shape == (2,)
+    # minus, not plus the shift gives more intuitive semantics.
+    mesh_points_r = np.linspace(-height / 2 - shift[0], +height / 2 - shift[0], height)
+    mesh_points_c = np.linspace(-width / 2 - shift[1], +width / 2 - shift[1], width)
+    rows_pts, cols_pts = np.meshgrid(mesh_points_r, mesh_points_c, indexing='ij')
+    mask = _disk(cols_pts, rows_pts, size, gaussian_width)
+    assert mask.shape == (height, width)
+    mask = np.reshape(mask, (height, width) + (1,) * len(pixel_shape))
+    assert mask.ndim == images.ndim - 1
+
+    return images * mask + background_color * (1.0 - mask)
+
+
 register_transformer('gammaTransform', _get_simple_transformer(gamma_transform),
                      {'gamma': 0.5, 'scale_factor': 1.0, 'verbose': False})
 register_transformer('logTransform', _get_simple_transformer(log_transform),
@@ -493,4 +535,10 @@ register_transformer('putInCanvas', _get_simple_transformer(put_in_canvas),
                       'external_jitter_list': None,
                       'return_jitter_list': False,  # never set this to True if you chain transformers.
                       'return_pos_list': False,  # never set this to True if you chain transformers.
+                      })
+register_transformer('aperture', _get_simple_transformer(whole_image_aperture),
+                     {'size': None,
+                      'gaussian_width': 5,
+                      'shift': (0, 0),
+                      'background_color': 0.5,  # gray background by default.
                       })

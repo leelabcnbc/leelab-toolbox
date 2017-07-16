@@ -1,15 +1,15 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import os.path
 import unittest
 from itertools import product
 
-import numpy as np
 import h5py
-import os.path
-
-test_dir = os.path.split(__file__)[0]
+import numpy as np
 
 from leelabtoolbox.preprocessing import transformers, pipeline
+
+test_dir = os.path.split(__file__)[0]
 
 rng_state = np.random.RandomState(seed=0)
 
@@ -204,6 +204,31 @@ class MyTestCase(unittest.TestCase):
                 self.assertTrue(np.all(pos_list[:, 1] == pos_list[0, 1]))
                 self.assertEqual(2 * pos_list[0, 1], canvas_w - img_w)
         self.assertTrue(flag_non_standard_center)
+
+    def test_aperture(self):
+        gaussian_width_list = [0.0, 2]
+        image_count_list = [1, 10]
+        shape_list = [(), (1,), (3,), (1, 3), (3, 1)]
+        shift_list = [(0, 0), (0, 3), (3, 0), (-3, 0), (0, -3), (3, 3), (-3, -3), (3, -3), (-3, 3)]
+        for trial_idx, (num_im,
+                        pixel_shape, shift,
+                        gaussian_width) in enumerate(product(image_count_list,
+                                                             shape_list, shift_list,
+                                                             gaussian_width_list)):
+            # just make sure that I can run them. the actual test is done in examples.
+            img_h = rng_state.randint(10, 20)
+            img_w = rng_state.randint(10, 20)
+            aperture_size = rng_state.randint(10, 20)
+            image_original = rng_state.randn(num_im, img_h, img_w, *pixel_shape)
+            canvas_color = rng_state.randn(*pixel_shape)
+
+            returned_result = transformers.transformer_dict['aperture']({
+                'size': aperture_size,
+                'gaussian_width': gaussian_width,
+                'shift': shift,
+                'background_color': canvas_color,  # gray background by default.
+            }).transform(image_original.copy())
+            self.assertEqual(returned_result.shape, image_original.shape)
 
     def test_random_sampling(self):
 
