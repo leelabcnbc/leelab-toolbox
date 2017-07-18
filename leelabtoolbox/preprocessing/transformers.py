@@ -106,7 +106,7 @@ def _sampling_random_handle_pars(n_img, patchsize, numpatches, buff, seed, fixed
         fixed_locations_single = True  # just convention.
 
     if not fixed_locations_flag:
-        sample_per_image = int(np.floor(numpatches / n_img))
+        sample_per_image = numpatches // n_img
     else:
         sample_per_image = None
 
@@ -329,7 +329,7 @@ def whiten_olsh_lee_inner(image, f_0=None, central_clip=(None, None), no_filter=
 
     # this gives the frequency (in terms of cycles/image) at each location.
     # notice that it's not perfectly symmetric, following the output of fftshift.
-    fh, fw = np.meshgrid(np.arange(-height / 2, height / 2), np.arange(-width / 2, width / 2), indexing='ij')
+    fh, fw = np.meshgrid(np.arange(-height / 2.0, height / 2.0), np.arange(-width / 2.0, width / 2.0), indexing='ij')
 
     rho = np.sqrt(fh * fh + fw * fw)
     if cutoff:
@@ -337,7 +337,7 @@ def whiten_olsh_lee_inner(image, f_0=None, central_clip=(None, None), no_filter=
             # cut off frequency, set at 0.8 of average max frequency (max frequency is h/2 or w/2)
             # this 0.4 can be interpreted as cycles per pixel.
             # this, this default f_0 is scale invariant.
-            f_0 = 0.4 * (height + width) / 2
+            f_0 = 0.4 * (height + width) / 2.0
         filt = rho * np.exp(-((rho / f_0) ** 4))
     else:
         filt = rho
@@ -467,7 +467,7 @@ def _disk(x, y, height, gaussian_width):
     return np.where(distance_outside_disk <= 0, 1.0, falloff)
 
 
-def whole_image_aperture(images, size, gaussian_width, shift, background_color):
+def whole_image_aperture(images, size, gaussian_width, shift, background_color, legacy):
     """rewrite of whole_image_aperture in early vision toolbox"""
     assert np.isscalar(size)
     height, width = images.shape[1:3]
@@ -477,8 +477,16 @@ def whole_image_aperture(images, size, gaussian_width, shift, background_color):
     shift = np.asarray(shift)
     assert shift.shape == (2,)
     # minus, not plus the shift gives more intuitive semantics.
-    mesh_points_r = np.linspace(-height / 2 - shift[0], +height / 2 - shift[0], height)
-    mesh_points_c = np.linspace(-width / 2 - shift[1], +width / 2 - shift[1], width)
+    if legacy:
+        mesh_points_r = np.linspace(-height / 2.0 - shift[0], +height / 2.0 - shift[0], height)
+        mesh_points_c = np.linspace(-width / 2.0 - shift[1], +width / 2.0 - shift[1], width)
+    else:
+        # this will make sure, the distance between adjacent pixels is exactly 1.
+        # this means that creating same sized apertures using a big image or its center
+        # will have exactly the same result, up to edge effect.
+        # this is not true in the legacy version.
+        mesh_points_r = np.linspace(-height / 2.0 - shift[0] + 0.5, +height / 2.0 - shift[0] - 0.5, height)
+        mesh_points_c = np.linspace(-width / 2.0 - shift[1] + 0.5, +width / 2.0 - shift[1] - 0.5, width)
     rows_pts, cols_pts = np.meshgrid(mesh_points_r, mesh_points_c, indexing='ij')
     mask = _disk(cols_pts, rows_pts, size, gaussian_width)
     assert mask.shape == (height, width)
@@ -541,4 +549,5 @@ register_transformer('aperture', _get_simple_transformer(whole_image_aperture),
                       'gaussian_width': 5,
                       'shift': (0, 0),
                       'background_color': 0.5,  # gray background by default.
+                      'legacy': False,  # old behavior, wrong spacing.
                       })

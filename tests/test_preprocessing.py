@@ -210,16 +210,22 @@ class MyTestCase(unittest.TestCase):
         image_count_list = [1, 10]
         shape_list = [(), (1,), (3,), (1, 3), (3, 1)]
         shift_list = [(0, 0), (0, 3), (3, 0), (-3, 0), (0, -3), (3, 3), (-3, -3), (3, -3), (-3, 3)]
+        legacy_or_not = [True, False]
         for trial_idx, (num_im,
                         pixel_shape, shift,
-                        gaussian_width) in enumerate(product(image_count_list,
-                                                             shape_list, shift_list,
-                                                             gaussian_width_list)):
+                        gaussian_width, legacy) in enumerate(product(image_count_list,
+                                                                     shape_list, shift_list,
+                                                                     gaussian_width_list,
+                                                                     legacy_or_not)):
             # just make sure that I can run them. the actual test is done in examples.
-            img_h = rng_state.randint(10, 20)
-            img_w = rng_state.randint(10, 20)
-            aperture_size = rng_state.randint(10, 20)
+            img_h = rng_state.randint(20, 30)
+            img_w = rng_state.randint(20, 30)
+            aperture_size = rng_state.randint(5, 10)
             image_original = rng_state.randn(num_im, img_h, img_w, *pixel_shape)
+
+            padding = rng_state.randint(1, 5)
+
+            image_original_inner = image_original[:, padding:-padding, padding:-padding].copy()
             canvas_color = rng_state.randn(*pixel_shape)
 
             returned_result = transformers.transformer_dict['aperture']({
@@ -227,8 +233,24 @@ class MyTestCase(unittest.TestCase):
                 'gaussian_width': gaussian_width,
                 'shift': shift,
                 'background_color': canvas_color,  # gray background by default.
+                'legacy': legacy,
             }).transform(image_original.copy())
             self.assertEqual(returned_result.shape, image_original.shape)
+
+            returned_result_inner = transformers.transformer_dict['aperture']({
+                'size': aperture_size,
+                'gaussian_width': gaussian_width,
+                'shift': shift,
+                'background_color': canvas_color,  # gray background by default.
+                'legacy': legacy,
+            }).transform(image_original_inner.copy())
+            returned_result_cropped = returned_result[:, padding:-padding, padding:-padding]
+            self.assertEqual(returned_result_inner.shape, returned_result_cropped.shape)
+            if gaussian_width != 0 and shift == (0, 0):
+                if not legacy:
+                    self.assertTrue(np.allclose(returned_result_cropped, returned_result_inner, atol=1e-6))
+                else:
+                    self.assertFalse(np.allclose(returned_result_cropped, returned_result_inner, atol=1e-6))
 
     def test_random_sampling(self):
 
