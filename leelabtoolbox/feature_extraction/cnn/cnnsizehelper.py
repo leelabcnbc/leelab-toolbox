@@ -42,7 +42,7 @@ def _check_layer_info_dict(layer_info_dict):
 
 
 class CNNSizeHelper(object):
-    def __init__(self, layer_info_dict, input_size=None):
+    def __init__(self, layer_info_dict, input_size=None, strict=True):
         """
 
         :param layer_info_dict:
@@ -99,7 +99,7 @@ class CNNSizeHelper(object):
             # verify kernelsize_g
             assert np.all(this_kernel_func(1) == kernelsize_this_g)
             # verify pad_g
-            assert np.all(this_kernel_func(pad_this + 1) - this_kernel_func(1) == pad_this * last_stride_g)
+            assert np.all(this_kernel_func(pad_this + 1) - this_kernel_func(1) == pad_this * stride_this_g)
             # still, I haven't verified the correctness of stride_g and pad_g very satisfactorily, but
             # I think it must be correct, given so many tests.
             kernel_func_dict[layer] = this_kernel_func
@@ -114,9 +114,9 @@ class CNNSizeHelper(object):
         self.kernel_func_dict = kernel_func_dict
         self.input_size = None
         if input_size is not None:
-            self.compute_output_size(input_size)
+            self.compute_output_size(input_size, strict=strict)
 
-    def compute_output_size(self, input_size):
+    def compute_output_size(self, input_size, strict=True):
         """give the blob size of each blob.
 
         Parameters
@@ -142,10 +142,11 @@ class CNNSizeHelper(object):
             # compute the dimension of units for output.
             output_size = tuple((np.asarray(last_input_size) + 2 * pad_this - kernelsize_this) // stride_this + 1)
 
-            # check that this output check can indeed exactly cover the input layer below,
-            _check_exact_cover(output_size, stride_this, kernelsize_this, last_input_size, pad_this)
-            # as well as input image (plus padding).
-            _check_exact_cover(output_size, stride_this_g, kernelsize_this_g, input_size, pad_this_g)
+            if strict:
+                # check that this output check can indeed exactly cover the input layer below,
+                _check_exact_cover(output_size, stride_this, kernelsize_this, last_input_size, pad_this)
+                # as well as input image (plus padding).
+                _check_exact_cover(output_size, stride_this_g, kernelsize_this_g, input_size, pad_this_g)
             input_size_this = last_input_size
             input_size_this_g = tuple(np.asarray(input_size) + 2 * pad_this_g)
 
